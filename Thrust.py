@@ -4,10 +4,14 @@ import re
 
 # global variables
 
-f_path = "/Users/beelee/PycharmProjects/OblateThrust/csv"
+f_path = "/Users/beelee/PycharmProjects/OblateThrust/csv/"
 a_digitale_f = f_path + "a_digitale_data.csv"
+s_sp_f = f_path + "s_sp_data.csv"
+p_flavicirrata_f = f_path + "p_flavicirrata_data.csv"
 a_victoria_f = f_path + "a_victoria_data.csv"
 m_cellularia_f = f_path + "m_cellularia_data.csv"
+p_gregarium_f = f_path + "p_gregarium_data.csv"
+
 
 vel_o = 0
 acc_m = 0
@@ -21,7 +25,7 @@ t_con = 0
 t_dri = 0
 
 
-sea_den = 1.024 * np.power(10.0, 6)  # 1/m^3, 1.024 1/cm^3 (Colin & Costello, 2001)
+sea_den = 1.024 * np.power(10.0, 6)  # g/m^3, 1.024 g/cm^3 (Colin & Costello, 2001)
 sea_vis = np.power(10.0, -6)  # m^2/s
 
 F_s = 0
@@ -33,9 +37,12 @@ def main():
 
     # import pre-cleaned up csv files, 1 prolate 2 oblates
     a_digitale = pd.read_csv(a_digitale_f)
+    s_sp = pd.read_csv(s_sp_f)
+    p_flavicirrata = pd.read_csv(p_flavicirrata_f)
     a_victoria = pd.read_csv(a_victoria_f)
     m_cellularia = pd.read_csv(m_cellularia_f)
-    dfs = [a_digitale, a_victoria, m_cellularia]
+    p_gregarium = pd.read_csv(p_gregarium_f)
+    dfs = [a_digitale, s_sp, p_flavicirrata, a_victoria, m_cellularia, p_gregarium]
 
     # clean up dataframes
 
@@ -101,7 +108,7 @@ def main():
         diameters = []  # store instantaneous diameters
 
         for row in df.index:
-            u = df.at[row, vel_col] / 100.0  # convert velocity unit to m^2/s
+            u = df.at[row, vel_col] / 100.0  # convert velocity unit to m/s
             velocities.append(u)
             d_h = dim(df.at[row, re_col], u, df.at[row, f_col])  # re: m^2/s / m^2/s, fineness: m/m
             diameters.append(d_h[0])
@@ -112,9 +119,7 @@ def main():
         df["d"] = diameters
 
 
-
     for df in dfs:
-
         volumes = []  # store instantaneous volumes
         masses = []  # store instantaneous masses
         orifices = []  # store instantaneous orifices
@@ -125,13 +130,14 @@ def main():
         for row in df.index:
             h = df.at[row, 'h']
             d = df.at[row, 'd']
+            r = df.at[row, 're']
             u = df.at[row, 'u']
             volumes.append(vol(h, d))
             masses.append(mas(h, d))
             orifices.append(ori(d))
-            drags.append(drg(h, d, u))
+            drags.append(drg(h, d, r, u))
             net_forces.append(nfr_m(h, d))
-            thrusts.append(thr_m(h, d, u))
+            thrusts.append(thr_m(h, d, r, u))
 
         df["vol"] = volumes
         df["mass"] = masses
@@ -143,90 +149,117 @@ def main():
         print(df)
 
 
-
-
 ######################################################################
-# set bell diameter and height
-# param: Re, fineness
+# set bell diameter (m) and height (m)
+# param: Re, velocity(m/s), fineness
 ######################################################################
 def dim(re_ref, u_ref, f_ref):
-    d_b = 1.0 * re_ref * sea_vis / np.absolute(u_ref)  # diameter: m
-    h_b = d_b * f_ref  # height: m
+    # bell diameter = Re * sea kinematic viscosity / swimming velocity
+    # diameter: m = (m^2/s / m^2/s) (m^2/s) / m/s
+    d_b = 1.0 * re_ref * sea_vis / np.absolute(u_ref)
+    # bell height = fineness * bell diameter
+    # height: m = (m/m) * m
+    h_b = d_b * f_ref
     return [d_b, h_b]
 
 
 ######################################################################
-# get bell volume
-# param: bell height, bell diameter
+# get bell volume (m^3)
+# param: bell height(m), bell diameter(m)
 ######################################################################
 def vol(h_ref, d_ref):
+    # bell radius = bell diameter / 2
+    # radius: m
     radius = d_ref / 2
-    volume = 2/3 * h_ref * np.power(radius, 2) * np.pi
+    # bell volume = 2/3 * bell height * pi * radius^2
+    # volume: m^3 = m * m^2
+    volume = 2/3 * h_ref * np.pi * np.power(radius, 2)
     return volume
 
 
 ######################################################################
-# get bell fineness
-# param: bell height, bell diameter
-######################################################################
-def fin(h_ref, d_ref):
-    fineness = h_ref / d_ref
-    return fineness
-
-
-######################################################################
-# get effective mass
-# param: bell height, bell diameter
+# get effective mass (g)
+# param: bell height(m), bell diameter(m)
 ######################################################################
 def mas(h_ref, d_ref):
-    coe = d_ref / (2 * np.power(h_ref, 1.4))
     volume = vol(h_ref, d_ref)
+    # mass coefficient = bell diameter / 2 * bell height^(1.4)
+    # coefficient = m/m
+    coe = d_ref / (2 * np.power(h_ref, 1.4))
+    # effective mass = sea density * bell volume * (1 + mass coefficient)
+    # mass: g = g/m^3 * m^3
     mass = sea_den * volume * (1 + coe)
     return mass
 
 
 ######################################################################
-# get orifice area
-# param: bell diameter
+# get orifice area (m^2)
+# param: bell diameter(m)
 ######################################################################
 def ori(d_ref):
+    # bell radius = bell diameter / 2
+    # radius: m
     radius = d_ref / 2
+    # orifice area = pi * bell radius^2
+    # area: m^2
     area = np.power(radius, 2) * np.pi
     return area
 
 
 ######################################################################
-# get drag
-# param: bell height, bell diameter
+# get drag (g * m / s^2)
+# param: Re, bell height(m), bell diameter(m), swimming velocity (m/s)
 ######################################################################
-def drg(h_ref, d_ref, u_ref):
-    re = d_ref * u_ref / sea_vis
-    area = np.pi * h_ref * d_ref / 4
+def drg(re_ref, h_ref, d_ref, u_ref):
     coe = 0
-    if re < 1:
-        coe = 24 / re
-    elif re < 500:
-        coe = 24 / np.power(re, 0.7)
-    if coe == 0:
+    if re_ref > 500:
         return 0
+    elif re_ref < 1:
+        # drag coefficient = 24 / re
+        # coefficient:
+        coe = 24 / re_ref
     else:
-        return (sea_den * np.power(u_ref, 2) * area * coe)/2
+        # drag coefficient = 24 / re^0.7
+        # coefficient:
+        coe = 24 / np.power(re_ref, 0.7)
+
+    # bell surface area = pi * bell height * bell diameter / 4
+    # area: m^2 = m * m
+    area = np.pi * h_ref * d_ref / 4
+
+    # drag force = sea density * swimming velocity^2 * bell surface area / 2
+    # drag: g * m / s^2 = g/m^3 * (m/s)^2 * m^2
+    drag = (sea_den * np.power(u_ref, 2) * area * coe) / 2
+
+    return drag
 
 
 ######################################################################
-# get modeled net force
+# get bell fineness
+# param: bell height(m), bell diameter(m)
+######################################################################
+def fin(h_ref, d_ref):
+    # bell fineness = bell height / bell diameter
+    # fineness: m/m
+    fineness = h_ref / d_ref
+    return fineness
+
+
+######################################################################
+# get net force according to observation (g * m / s^2)
 ######################################################################
 def nfr_m(h_ref, d_ref):
     mass = mas(h_ref, d_ref)
+    # net_force =
     return acc_m * mass
 
 
 ######################################################################
 # modeled thrust
 ######################################################################
-def thr_m(h_ref, d_ref, u_ref):
+def thr_m(h_ref, d_ref, re_ref, u_ref):
     force = nfr_m(h_ref, d_ref)
-    drag = drg(h_ref, d_ref, u_ref)
+    drag = drg(h_ref, d_ref, re_ref, u_ref)
     return force + drag
 
 
