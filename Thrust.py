@@ -4,7 +4,7 @@ import re
 
 # global variables
 
-f_path = "/Users/beelee/Desktop/Jelly/F20/2001_data/csv/"
+f_path = "/Users/beelee/PycharmProjects/OblateThrust/csv"
 a_digitale_f = f_path + "a_digitale_data.csv"
 a_victoria_f = f_path + "a_victoria_data.csv"
 m_cellularia_f = f_path + "m_cellularia_data.csv"
