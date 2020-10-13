@@ -12,11 +12,6 @@ a_victoria_f = f_path + "a_victoria_data.csv"
 m_cellularia_f = f_path + "m_cellularia_data.csv"
 p_gregarium_f = f_path + "p_gregarium_data.csv"
 
-
-vel_o = 0
-acc_m = 0
-acc_o = 0
-
 s_b = 0.0
 
 t_rel = 0
@@ -24,14 +19,12 @@ t_pau = 0
 t_con = 0
 t_dri = 0
 
-
 sea_den = 1.024 * np.power(10.0, 6)  # g/m^3, 1.024 g/cm^3 (Colin & Costello, 2001)
 sea_vis = np.power(10.0, -6)  # m^2/s
 
 F_s = 0
 
 acc_cor = 0
-
 
 def main():
 
@@ -42,21 +35,42 @@ def main():
     a_victoria = pd.read_csv(a_victoria_f)
     m_cellularia = pd.read_csv(m_cellularia_f)
     p_gregarium = pd.read_csv(p_gregarium_f)
-    dfs = [a_digitale, s_sp, p_flavicirrata, a_victoria, m_cellularia, p_gregarium]
+
+    # task 1: find subumbrellar length
+
+    # 0.85cm & 2.14cm bell diameters for s_sp and p_gregarium (Colin & Costello, 2001)
+    # ori_dict = {s_sp: ori(0.85 / 100), p_gregarium: ori(2.14 / 100)}
+    s_sp_ori = ori(0.85 / 100)
+    p_gregarium_ori = ori(2.14 / 100)
+    oris = [s_sp_ori, p_gregarium_ori]
+    dfs = [s_sp, p_gregarium]
 
     # clean up dataframes
-
-    a_digitale.dropna(axis=0, how='any', inplace=True)  # drop incomplete rows for the prolate medusae
-    m_cellularia.dropna(axis=0, how='any', inplace=True)  # drop incomplete rows for the oblate medusae
+    # a_digitale.dropna(axis=0, how='any', inplace=True)  # drop incomplete rows for the prolate medusae
+    # m_cellularia.dropna(axis=0, how='any', inplace=True)  # drop incomplete rows for the oblate medusae
 
     # for column in dfs_2001[0].columns:  # shift velocity columns to line up data for prolate medusae
     #     index_no = dfs_2001[0].columns.get_loc(column)
     #     if index_no == 5 or index_no == 6:
     #         dfs_2001[0][column] = dfs_2001[0][column].shift(-1)
 
-    # deleate extra references
-    for df in dfs:
+    clean_time(dfs)
+    add_basics(dfs)
+    mod_thrust(dfs, oris)
+    
 
+    for df in dfs:
+        print(df)
+
+    # task 2:
+    # dfs = [a_victoria, m_cellularia, p_gregarium]
+
+
+######################################################################
+# clean up data frame to show only 1 corrected time reference
+######################################################################
+def clean_time(dfs_ref):
+    for df in dfs_ref:
         to_delete = []  # store columns to delete as a list
         for column in df.columns:
             index_no = df.columns.get_loc(column)  # get the column index number
@@ -87,30 +101,35 @@ def main():
         if to_delete:
             df.drop(to_delete, axis=1, inplace=True)
 
-    for df in dfs:
-        f_col = ''
-        vel_col = ''
-        re_col = ''
 
-        for column in df.columns:
-            if re.search(r'f', column):
-                f_col = re.search(r'f', column).string
-                # print(f_col)
-            if re.search(r'v', column):
-                vel_col = re.search(r'v', column).string
-                # print(vel_col)
-            if re.search(r're', column):
-                re_col = re.search(r're', column).string
-                # print(re_col)
-
+######################################################################
+# add instantaneous heights, diameters, and velocities in the
+# corrected unit. these complete the basic measurements
+######################################################################
+def add_basics(dfs_ref):
+    for df in dfs_ref:
+        # f_col = ''
+        # vel_col = ''
+        # re_col = ''
+        #
+        # for column in df.columns:
+        #     if re.search(r'f', column):
+        #         f_col = re.search(r'f', column).string
+        #         # print(f_col)
+        #     if re.search(r'v', column):
+        #         vel_col = re.search(r'v', column).string
+        #         # print(vel_col)
+        #     if re.search(r're', column):
+        #         re_col = re.search(r're', column).string
+        #         # print(re_col)
         velocities = []  # store instantaneous velocities with newly converted units
         heights = []  # store instantaneous heights
         diameters = []  # store instantaneous diameters
 
         for row in df.index:
-            u = df.at[row, vel_col] / 100.0  # convert velocity unit to m/s
+            u = df.at[row, 'v'] / 100.0  # convert velocity unit to m/s
             velocities.append(u)
-            d_h = dim(df.at[row, re_col], u, df.at[row, f_col])  # re: m^2/s / m^2/s, fineness: m/m
+            d_h = dim(df.at[row, 're'], u, df.at[row, 'f'])  # re: m^2/s / m^2/s, fineness: m/m
             diameters.append(d_h[0])
             heights.append(d_h[1])
 
@@ -119,10 +138,16 @@ def main():
         df["d"] = diameters
 
 
-    for df in dfs:
+######################################################################
+# find the modeled thrust force based on the modeled acceleration
+# derived by the basic measurements
+######################################################################
+def mod_thrust(dfs_ref, ori_ref):
+    count = 0
+    for df in dfs_ref:
         volumes = []  # store instantaneous volumes
         masses = []  # store instantaneous masses
-        orifices = []  # store instantaneous orifices
+        # orifices = []  # store instantaneous orifices
         drags = []  # store instantaneous drags
         net_forces = []  # store instantaneous net_forces
         thrusts = []  # store instantaneous thrusts
@@ -130,23 +155,23 @@ def main():
         for row in df.index:
             h = df.at[row, 'h']
             d = df.at[row, 'd']
+            am = df.at[row, 'am']
             r = df.at[row, 're']
             u = df.at[row, 'u']
             volumes.append(vol(h, d))
             masses.append(mas(h, d))
-            orifices.append(ori(d))
+            net_forces.append(nfr_m(h, d, am))
             drags.append(drg(h, d, r, u))
-            net_forces.append(nfr_m(h, d))
-            thrusts.append(thr_m(h, d, r, u))
+            thrusts.append(thr_m(h, d, am, r, u))
 
         df["vol"] = volumes
         df["mass"] = masses
-        df["ori"] = orifices
-        df["drag"] = drags
         df["modeled_net"] = net_forces
+        df["drag"] = drags
         df["modeled thrust"] = thrusts
+        df["ori"] = ori_ref[count]
 
-        print(df)
+        count += 1
 
 
 ######################################################################
@@ -190,6 +215,18 @@ def mas(h_ref, d_ref):
     # mass: g = g/m^3 * m^3
     mass = sea_den * volume * (1 + coe)
     return mass
+
+
+######################################################################
+# get net force according to observation (g * m / s^2)
+# param: bell height(m), bell diameter(m), modeled acceleration(m/s^2)
+######################################################################
+def nfr_m(h_ref, d_ref, am_ref):
+    mass = mas(h_ref, d_ref)
+    # force = mass * acceleration
+    # force: g * m / s^2 = g * (m / s^2)
+    net_force = mass * am_ref
+    return net_force
 
 
 ######################################################################
@@ -246,19 +283,10 @@ def fin(h_ref, d_ref):
 
 
 ######################################################################
-# get net force according to observation (g * m / s^2)
-######################################################################
-def nfr_m(h_ref, d_ref):
-    mass = mas(h_ref, d_ref)
-    # net_force =
-    return acc_m * mass
-
-
-######################################################################
 # modeled thrust
 ######################################################################
-def thr_m(h_ref, d_ref, re_ref, u_ref):
-    force = nfr_m(h_ref, d_ref)
+def thr_m(h_ref, d_ref, am_ref, re_ref, u_ref):
+    force = nfr_m(h_ref, d_ref, am_ref)
     drag = drg(h_ref, d_ref, re_ref, u_ref)
     return force + drag
 
