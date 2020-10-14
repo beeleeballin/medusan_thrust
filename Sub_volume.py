@@ -45,6 +45,8 @@ def main():
     add_basics(dfs)
     mod_thrust(dfs)
     subumbrellar_to_bell(dfs, oris)
+    for df in dfs:
+        print(df)
 
     # split and align pulsations data for each medusae
     s_sp_1 = s_sp[1:13].copy()
@@ -108,6 +110,8 @@ def main():
         plt.ylabel("dS")
         plt.tight_layout()
         plt.show()
+
+        print(polymodel2)
 
         dfs_count += 1
 
@@ -233,6 +237,7 @@ def subumbrellar_to_bell(dfs_ref, ori_ref):
         dV = []
         dS = []
 
+        thrust = ""
         for column in df.columns:
             if re.search(r'thrust', column):
                 thrust = re.search(r'thrust', column).string
@@ -257,9 +262,9 @@ def subumbrellar_to_bell(dfs_ref, ori_ref):
         dV.append(0)
         dS.append(0)
 
-        df["dVdt"] = dVdt
-        df["dSdt"] = dSdt
-        df["dSdV"] = dSdV
+        # df["dVdt"] = dVdt
+        # df["dSdt"] = dSdt
+        # df["dSdV"] = dSdV
         df["dV"] = dV
         df["dS"] = dS
 
@@ -326,7 +331,6 @@ def nfr_m(h_ref, d_ref, am_ref):
 # param: Re, bell height(m), bell diameter(m), swimming velocity (m/s)
 ######################################################################
 def drg(re_ref, h_ref, d_ref, u_ref):
-    coe = 0
     if re_ref > 500:
         return 0
     elif re_ref < 1:
