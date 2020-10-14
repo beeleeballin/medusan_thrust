@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import re
 from matplotlib import pyplot as plt
 
 # global variables
@@ -30,15 +29,103 @@ def main():
     # group the two medusae of interest for later use
     dfs = [a_victoria, m_cellularia, p_gregarium]
 
-
     clean_time(dfs)
     p_gregarium.drop('am', axis='columns', inplace=True)
     add_basics(dfs)
-    find_thrust(dfs)
-    # subumbrellar_to_bell(dfs, oris)
-
+    find_accel(dfs)
     for df in dfs:
-        print(df)
+        df.drop(df.tail(1).index, inplace=True)
+
+    # split and align pulsations data for each medusae
+    a_victoria_1 = a_victoria[1:11].copy()
+    a_victoria_2 = a_victoria[10:19].copy()
+    a_victoria_2["st"] = a_victoria_2["st"] - (a_victoria["st"][10] - a_victoria["st"][3])
+    a_victoria_3 = a_victoria[18:26].copy()
+    a_victoria_3["st"] = a_victoria_3["st"] - (a_victoria["st"][18] - a_victoria["st"][3])
+    a_victoria_4 = a_victoria[25:32].copy()
+    a_victoria_4["st"] = a_victoria_4["st"] - (a_victoria["st"][25] - (a_victoria["st"][3] + a_victoria["st"][4])/2)
+    a_victorias = [a_victoria_1, a_victoria_2, a_victoria_3, a_victoria_4]
+
+    m_cellularia_1 = m_cellularia[4:17].copy()
+    m_cellularia_1["st"] = m_cellularia_1["st"] + m_cellularia["st"][0]/2
+    m_cellularia_2 = m_cellularia[16:29].copy()
+    m_cellularia_2["st"] = m_cellularia_2["st"] - (m_cellularia["st"][16] - m_cellularia["st"][5])
+    m_cellularia_3 = m_cellularia[28:40].copy()
+    m_cellularia_3["st"] = m_cellularia_3["st"] - (m_cellularia["st"][28] - m_cellularia["st"][6])
+    m_cellularia_4 = m_cellularia[39:55].copy()
+    m_cellularia_4["st"] = m_cellularia_4["st"] - (m_cellularia["st"][39] - m_cellularia["st"][4])
+    m_cellularias = [m_cellularia_1, m_cellularia_2, m_cellularia_3, m_cellularia_4]
+
+    p_gregarium_1 = p_gregarium[1:6].copy()
+    p_gregarium_1["st"] = p_gregarium_1["st"] + (p_gregarium["st"][0] / 2)
+    p_gregarium_2 = p_gregarium[5:9].copy()
+    p_gregarium_2["st"] = p_gregarium_2["st"] - (p_gregarium["st"][5] - (p_gregarium["st"][1] + p_gregarium["st"][2]) / 2)
+    p_gregarium_3 = p_gregarium[8:13].copy()
+    p_gregarium_3["st"] = p_gregarium_3["st"] - (p_gregarium["st"][8] - p_gregarium["st"][1])
+    p_gregarium_4 = p_gregarium[12:17].copy()
+    p_gregarium_4["st"] = p_gregarium_4["st"] - (p_gregarium["st"][12] - p_gregarium["st"][1])
+    p_gregariums = [p_gregarium_1, p_gregarium_2, p_gregarium_3, p_gregarium_4]
+    dfss = [a_victorias, m_cellularias, p_gregariums]
+
+    medusae = ['a_victoria', 'm_cellularia', 'p_gregarium']
+    dfs_count = 0
+    for dfs in dfss:
+        total_x = np.array([])
+        total_y = np.array([])
+        colors = ['goldenrod', 'firebrick', 'forestgreen', 'dodgerblue']
+        df_count = 0
+        for df in dfs:
+            label = "cycle #" + str(df_count + 1)
+            plt.plot(df["st"], df["vol"], color=colors[df_count], label=label)
+            total_x = np.append(total_x, df["st"].values)
+            total_y = np.append(total_y, df["vol"].values)
+            df_count += 1
+        polymodel1 = np.poly1d(np.polyfit(total_x, total_y, 3))
+        polyline1 = np.linspace(min(total_x), max(total_x), 100)
+        plt.plot(polyline1, polymodel1(polyline1), color='magenta', linestyle='--', label='p(3) regression')
+        plt.title("%s bell volume over 1 pulsation cycle" % (medusae[dfs_count]))
+        plt.legend()
+        plt.xlabel("time s")
+        plt.ylabel("volume m^3")
+        plt.tight_layout()
+        plt.show()
+
+        dfs_count += 1
+
+    for dfs in dfss:
+        for df in dfs:
+            for row in df.index:
+                print("row %i value %f" % (row, df.loc[row, 'am']))
+                if df.loc[row, 'am'] > 100:
+                    print("row %i value %f" % (row, df.loc[row, 'am']))
+                    df.drop(row, inplace=True)
+
+    dfs_count = 0
+    for dfs in dfss:
+        total_x = np.array([])
+        total_y = np.array([])
+        colors = ['goldenrod', 'firebrick', 'forestgreen', 'dodgerblue']
+        df_count = 0
+        for df in dfs:
+            label = "cycle #" + str(df_count + 1)
+            plt.plot(df["st"], df["am"], color=colors[df_count], label=label)
+            total_x = np.append(total_x, df["st"].values)
+            total_y = np.append(total_y, df["am"].values)
+            df_count += 1
+        polymodel2 = np.poly1d(np.polyfit(total_x, total_y, 2))
+        polyline2 = np.linspace(min(total_x), max(total_x), 100)
+        plt.plot(polyline2, polymodel2(polyline2), color='magenta', linestyle='--', label='modeled p(2) regression')
+        plt.title("%s acceleration over time" % (medusae[dfs_count]))
+        plt.legend()
+        plt.xlabel("time s")
+        plt.ylabel("acceleration ms^-2")
+        plt.tight_layout()
+        plt.show()
+
+        # print(polymodel2)
+
+    # for df in dfs:
+    #     print(df)
 
 
 ######################################################################
@@ -103,20 +190,26 @@ def add_basics(dfs_ref):
 ######################################################################
 # estimate change of oblate subumbrellar volume
 ######################################################################
+def dS(dV):
+    # formula acquired from Sub_volume.py
+    res = 8064 * np.power(dV, 2) + 0.1188 * dV + 1.217e-07
+    return res
 
 
 ######################################################################
 # find the modeled thrust force based on the modeled acceleration
 # derived by the basic measurements
 ######################################################################
-def find_thrust(dfs_ref):
+def find_accel(dfs_ref):
     for df in dfs_ref:
         volumes = []  # store instantaneous volumes
         masses = []  # store instantaneous masses
         orifices = []  # store instantaneous orifices
         drags = []  # store instantaneous drags
-        # net_forces = []  # store instantaneous net_forces
-        # thrusts = []  # store instantaneous thrusts
+        dSdt = []
+        thrusts = []  # store instantaneous thrusts
+        net_forces = []  # store instantaneous net_forces
+        accelerations = []
 
         for row in df.index:
             h = df.at[row, 'h']
@@ -127,59 +220,40 @@ def find_thrust(dfs_ref):
             masses.append(mas(h, d))
             drags.append(drg(r, h, d, u))
             orifices.append(ori(d))
-            # net_forces.append(nfr_m(h, d, am))
-            # thrusts.append(thr_m(h, d, am, r, u))
 
         df["vol"] = volumes
-        df["mass"] = masses
-        df["drag"] = drags
         df["ori"] = orifices
-        # df["modeled_net"] = net_forces
 
-        # df["modeled thrust"] = thrusts
-
-
-######################################################################
-# find the modeled thrust force based on the modeled acceleration
-# derived by the basic measurements
-######################################################################
-def subumbrellar_to_bell(dfs_ref, ori_ref):
-    count = 0
-    for df in dfs_ref:
-        dSdt = []
-        dVdt = []
-        dSdV = []  # store instantaneous volumes
-        dV = []
-        dS = []
-
-        for column in df.columns:
-            if re.search(r'thrust', column):
-                thrust = re.search(r'thrust', column).string
-        for row in (list(range(len(df.index) - 1))):
-            f = df.at[row, thrust]
+        for row in list(range(len(df.index)-1)):
             v1 = df.at[row, 'vol']
-            v2 = df.at[row + 1, 'vol']
-            t = df.at[0, 'st']
-            dVdt.append((v2 - v1) / t)
-            dSdt.append(np.sqrt(ori_ref[count] / sea_den * f))
-            SV = dsdv(f, ori_ref[count], v1, v2, t)
-            dSdV.append(SV)
-            dV.append(v2 - v1)
-            dS.append(SV * (v2 - v1))
+            v2 = df.at[row+1, 'vol']
+            t1 = df.at[row, 'st']
+            t2 = df.at[row + 1, 'st']
+            o = df.at[row, 'ori']
+            dSdt.append(dS(v2-v1)/(t2-t1))
+            thrusts.append(thr_p(o, v1, v2, t1, t2))
 
-        dVdt.append(0)
         dSdt.append(0)
-        dSdV.append(0)
-        dV.append(0)
-        dS.append(0)
+        thrusts.append(0)
 
-        # df["dSdt"] = dSdt
-        # df["dVdt"] = dVdt
-        df["dSdV"] = dSdV
-        df["dV"] = dV
-        df["dS"] = dS
+        df["drag"] = drags
+        df["dSdt"] = dSdt
+        df["thrust"] = thrusts
 
-        count += 1
+        for row in df.index:
+            thr = df.at[row, 'thrust']
+            drag = df.at[row, 'drag']
+            net_forces.append(nfr(thr, drag))
+
+        df["mass"] = masses
+        df["force"] = net_forces
+
+        for row in df.index:
+            m = df.at[row, 'mass']
+            f = df.at[row, 'force']
+            accelerations.append(f/m)
+
+        df["am"] = accelerations
 
 
 ######################################################################
@@ -226,23 +300,10 @@ def mas(h_ref, d_ref):
 
 
 ######################################################################
-# get net force (g * m / s^2)
-# param: bell height(m), bell diameter(m), modeled acceleration(m/s^2)
-######################################################################
-def nfr_m(h_ref, d_ref, am_ref):
-    mass = mas(h_ref, d_ref)
-    # force = mass * acceleration
-    # force: g * m / s^2 = g * (m / s^2)
-    net_force = mass * am_ref
-    return net_force
-
-
-######################################################################
 # get drag (g * m / s^2)
 # param: Re, bell height(m), bell diameter(m), swimming velocity (m/s)
 ######################################################################
 def drg(re_ref, h_ref, d_ref, u_ref):
-    coe = 0
     if re_ref > 700:
         return 0
     elif re_ref < 1:
@@ -262,22 +323,10 @@ def drg(re_ref, h_ref, d_ref, u_ref):
     # drag: g * m / s^2 = g/m^3 * (m/s)^2 * m^2
     drag = (sea_den * np.power(u_ref, 2) * area * coe) / 2
 
+    if drag < 0.000001:
+        print("coe %f area %f veloc %f" % (coe, area, u_ref))
+
     return drag
-
-
-######################################################################
-# get thrust (g * m / s^2)
-# param: bell height(m), bell diameter(m), acceleration(m/s^2),
-#        Re, swimming velocity (m/s)
-######################################################################
-def thr_m(h_ref, d_ref, am_ref, re_ref, u_ref):
-    force = nfr_m(h_ref, d_ref, am_ref)
-    drag = drg(re_ref, h_ref, d_ref, u_ref)
-    thrust = force + drag
-    if thrust < 0:
-        return 0
-    else:
-        return thrust
 
 
 ######################################################################
@@ -304,8 +353,28 @@ def dsdv(thrust_ref, ori_ref, vol_1, vol_2, t):
     # bell. therefore, dsdv should always be positive
     dsdt = np.sqrt(ori_ref / sea_den * thrust_ref)
     dvdt = (vol_2 - vol_1) / t
-    dsdv = np.absolute(dsdt / dvdt)
-    return dsdv
+    res = np.absolute(dsdt / dvdt)
+    return res
+
+
+######################################################################
+# corrected fluid ejection thrust
+######################################################################
+def thr_p(ori_ref, v1_ref, v2_ref, t_1, t_2):
+    dsdt = dS(v2_ref - v1_ref) / (t_2 - t_1)
+    thrust = sea_den / ori_ref * np.power(dsdt, 2)
+    return thrust
+
+
+######################################################################
+# get net force (g * m / s^2)
+# param: thrust (g * m / s^2), drag (g * m / s^2)
+######################################################################
+def nfr(thr_ref, drg_ref):
+    # force = thrust - drag
+    # force: g * m / s^2 = g * m / s^2 - g * m / s^2
+    net_force = thr_ref - drg_ref
+    return net_force
 
 
 ######################################################################
@@ -317,22 +386,6 @@ def fin(h_ref, d_ref):
     # fineness: m/m
     fineness = h_ref / d_ref
     return fineness
-
-
-######################################################################
-# effective mass
-######################################################################
-def s():
-    return 0
-
-
-######################################################################
-# corrected fluid ejection thrust
-######################################################################
-def thr_p(d_ref, surf_1, surf_2, t_1, t_2):
-    area = ori(d_ref)
-    dsdt = (surf_2 - surf_1) / (t_2 - t_1)
-    return sea_den / area * np.power(dsdt, 2)
 
 
 main()
