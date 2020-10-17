@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import re
 from matplotlib import pyplot as plt
+import csv
 
 # global variables
 
@@ -68,7 +69,7 @@ def main():
     p_gregariums = [p_gregarium_1, p_gregarium_2, p_gregarium_3, p_gregarium_4]
     dfss = [s_sps, p_gregariums]
 
-    medusae = ['prolate', 'oblate']
+    medusae = ['prolate medusae a.digitale', 'oblate medusae p.gregarium']
     dfs_count = 0
     for dfs in dfss:
         total_x = np.array([])
@@ -112,6 +113,25 @@ def main():
         plt.show()
 
         print(polymodel2)
+        dfs_count += 1
+
+    dfs_count = 0
+    for dfs in dfss:
+        total_x = np.array([])
+        total_y = np.array([])
+        for df in dfs:
+            total_x = np.append(total_x, df["st"].values)
+            total_y = np.append(total_y, df["modeled thrust"].values)
+        polymodel3 = np.poly1d(np.polyfit(total_x, total_y, 2))
+        polyline3 = np.linspace(min(total_x), max(total_x), 100)
+        plt.scatter(total_x, total_y)
+        plt.plot(polyline3, polymodel3(polyline3), label='thrust regression')
+        plt.title("modeled thrust of %s over time" % (medusae[dfs_count]))
+        plt.legend()
+        plt.xlabel("time s")
+        plt.ylabel("thrust g * m *s^-2")
+        plt.tight_layout()
+        plt.show()
 
         dfs_count += 1
 
@@ -186,8 +206,8 @@ def add_basics(dfs_ref):
             diameters.append(d_h[0])
             heights.append(d_h[1])
 
-        df["u"] = velocities
-        df["amc"] = accelerations
+        df["v"] = velocities
+        df["am"] = accelerations
         df["h"] = heights
         df["d"] = diameters
 
@@ -208,9 +228,9 @@ def mod_thrust(dfs_ref):
         for row in df.index:
             h = df.at[row, 'h']
             d = df.at[row, 'd']
-            am = df.at[row, 'amc']
+            am = df.at[row, 'am']
             r = df.at[row, 're']
-            u = df.at[row, 'u']
+            u = df.at[row, 'v']
             volumes.append(vol(h, d))
             masses.append(mas(h, d))
             net_forces.append(nfr_m(h, d, am))
@@ -263,7 +283,7 @@ def subumbrellar_to_bell(dfs_ref, ori_ref):
         dS.append(0)
 
         # df["dVdt"] = dVdt
-        # df["dSdt"] = dSdt
+        df["dSdt"] = dSdt
         # df["dSdV"] = dSdV
         df["dV"] = dV
         df["dS"] = dS
