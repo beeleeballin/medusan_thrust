@@ -22,16 +22,16 @@ def main():
     # import pre-cleaned up csv files, 1 prolate 1 oblates
     s_sp = pd.read_csv(s_sp_f)
     p_gregarium = pd.read_csv(p_gregarium_f)
-
-    # group the two medusae of interest for later use
+    # group the two medusae of interest for easy access
     dfs = [s_sp, p_gregarium]
 
-
-    # group constant orifice areas for later use
-    # 0.85cm & 2.14cm bell diameters for s_sp and p_gregarium (Colin & Costello, 2001)
+    # s_sp: 0.85cm diameter, p_gregarium: 2.14cm diameter (Colin & Costello, 2001)
     s_sp_ori = ori(0.85 / 100)
     p_gregarium_ori = ori(2.14 / 100)
+    # group the two constant orifice areas for easy access
     oris = [s_sp_ori, p_gregarium_ori]
+
+
 
     # clean up dataframes
     # a_digitale.dropna(axis=0, how='any', inplace=True)  # drop incomplete rows for the prolate medusae
@@ -41,31 +41,41 @@ def main():
     #     index_no = dfs_2001[0].columns.get_loc(column)
     #     if index_no == 5 or index_no == 6:
     #         dfs_2001[0][column] = dfs_2001[0][column].shift(-1)
-
-    clean_time(dfs)
-    add_basics(dfs)
-    mod_thrust(dfs)
-    subumbrellar_to_bell(dfs, oris)
-    for df in dfs:
+    for (df, o) in zip(dfs, oris):
+        clean_time(df)
+        basics(df)
+        mod_thrust(df)
+        subumbrellar_to_bell(df, o)
         print(df)
+
+    # # am and ao align as shown in Fig. 5 Colin & Costello, 2001
+    # for df in dfs:
+    #     plt.plot(df["st"], df["am"])
+    #     plt.plot(df["st"], df["ao"])
+    #     plt.xlabel("time s")
+    #     plt.ylabel("acceleration")
+    #     plt.tight_layout()
+    #     plt.show()
 
     # split and align pulsations data for each medusae
     s_sp_1 = s_sp[1:13].copy()
+    s_sp_1["st"] = s_sp_1["st"] - (s_sp["st"][0] + s_sp["st"][1])/2
     s_sp_2 = s_sp[12:25].copy()
-    s_sp_2["st"] = s_sp_2["st"] - (s_sp["st"][12] - (s_sp["st"][0]+s_sp["st"][1])/2)
+    s_sp_2["st"] = s_sp_2["st"] - s_sp["st"][12]
     s_sp_3 = s_sp[24:36].copy()
-    s_sp_3["st"] = s_sp_3["st"] - (s_sp["st"][24] - s_sp["st"][1])
+    s_sp_3["st"] = s_sp_3["st"] - (s_sp["st"][23] + s_sp["st"][24])/2
     s_sp_4 = s_sp[35:45].copy()
-    s_sp_4["st"] = s_sp_4["st"] - (s_sp["st"][35] - s_sp["st"][2])
+    s_sp_4["st"] = s_sp_4["st"] - (s_sp["st"][33] + s_sp["st"][34])/2
     s_sps = [s_sp_1, s_sp_2, s_sp_3, s_sp_4]
 
     p_gregarium_1 = p_gregarium[1:6].copy()
+    p_gregarium_1["st"] = p_gregarium_1["st"] - p_gregarium["st"][1]
     p_gregarium_2 = p_gregarium[5:9].copy()
-    p_gregarium_2["st"] = p_gregarium_2["st"] - (p_gregarium["st"][5] - (p_gregarium["st"][1] + p_gregarium["st"][2])/2)
+    p_gregarium_2["st"] = p_gregarium_2["st"] - (p_gregarium["st"][4] + p_gregarium["st"][5])/2
     p_gregarium_3 = p_gregarium[8:13].copy()
-    p_gregarium_3["st"] = p_gregarium_3["st"] - (p_gregarium["st"][8] - p_gregarium["st"][1])
+    p_gregarium_3["st"] = p_gregarium_3["st"] - p_gregarium["st"][8]
     p_gregarium_4 = p_gregarium[12:17].copy()
-    p_gregarium_4["st"] = p_gregarium_4["st"] - (p_gregarium["st"][12] - p_gregarium["st"][1])
+    p_gregarium_4["st"] = p_gregarium_4["st"] - p_gregarium["st"][12]
     p_gregariums = [p_gregarium_1, p_gregarium_2, p_gregarium_3, p_gregarium_4]
     dfss = [s_sps, p_gregariums]
 
@@ -78,9 +88,9 @@ def main():
         df_count = 0
         for df in dfs:
             label = "cycle #" + str(df_count+1)
-            plt.plot(df["st"], df["vol"], color=colors[df_count], label=label)
+            plt.plot(df["st"], df["V"], color=colors[df_count], label=label)
             total_x = np.append(total_x, df["st"].values)
-            total_y = np.append(total_y, df["vol"].values)
+            total_y = np.append(total_y, df["V"].values)
             df_count += 1
         polymodel1 = np.poly1d(np.polyfit(total_x, total_y, 3))
         polyline1 = np.linspace(min(total_x), max(total_x), 100)
@@ -121,7 +131,7 @@ def main():
         total_y = np.array([])
         for df in dfs:
             total_x = np.append(total_x, df["st"].values)
-            total_y = np.append(total_y, df["modeled thrust"].values)
+            total_y = np.append(total_y, df["tm"].values)
         polymodel3 = np.poly1d(np.polyfit(total_x, total_y, 2))
         polyline3 = np.linspace(min(total_x), max(total_x), 100)
         plt.scatter(total_x, total_y)
@@ -137,158 +147,154 @@ def main():
 
 
 ######################################################################
-# clean up data frame to show only 1 corrected time reference
+# clean up dataframe to show just 1 equivalent time reference
 ######################################################################
-def clean_time(dfs_ref):
-    for df in dfs_ref:
-        to_delete = []  # store columns to delete as a list
-        for column in df.columns:
-            index_no = df.columns.get_loc(column)  # get the column index number
-            # print("column #%i" % index_no)
+def clean_time(df_ref):
+    # store columns to delete
+    to_delete = []
+    for column in df_ref.columns:
+        # get the column index number
+        index_no = df_ref.columns.get_loc(column)
 
-            if index_no % 2 == 1:
-                eq = True
-                second_err = False  # only cancel deletion when 2 time references in a row are different from template
-                # print("eq set to true")
-                for row in df.index:
-                    if np.absolute(df.iat[row, 0] - round(df.iat[row, index_no], 2)) > 0.02:
-                        # print("row value %f and column value %f" % (df.iat[row, 0], round(df.iat[row, index_no], 2)))
-                        if second_err:
-                            eq = False
-                            # print("eq turns false")
-                            break
-                        second_err = True
-                    else:
-                        second_err = False
-            else:
-                eq = False
-                # print("eq set to false")
+        # besides standard time in column 0, all time data are in odd columns
+        # --> inspect every odd columns
+        if index_no % 2 == 1:
+            # this column is a time reference
+            eq = True
+            # assume no more than 2 references in a row are considerably different to standard time
+            second_err = False
+            for row in df_ref.index:
+                if np.absolute(df_ref.iat[row, 0] - round(df_ref.iat[row, index_no], 2)) > 0.02:
+                    if second_err:
+                        break
+                    second_err = True
+                else:
+                    second_err = False
+        else:
+            eq = False
 
-            if eq:
-                # print("eq true all the way at column %i, so store name" % index_no)
-                to_delete.append(column)
+        if eq:
+            to_delete.append(column)
 
-        if to_delete:
-            df.drop(to_delete, axis=1, inplace=True)
-
-
-######################################################################
-# add instantaneous heights, diameters, and velocities and accelerations
-# in the corrected units. these complete the basic measurements
-######################################################################
-def add_basics(dfs_ref):
-    for df in dfs_ref:
-        # f_col = ''
-        # vel_col = ''
-        # re_col = ''
-        #
-        # for column in df.columns:
-        #     if re.search(r'f', column):
-        #         f_col = re.search(r'f', column).string
-        #         # print(f_col)
-        #     if re.search(r'v', column):
-        #         vel_col = re.search(r'v', column).string
-        #         # print(vel_col)
-        #     if re.search(r're', column):
-        #         re_col = re.search(r're', column).string
-        #         # print(re_col)
-        velocities = []  # store instantaneous velocities in converted units
-        accelerations = []  # store instantaneous accelerations in converted units
-        heights = []  # store instantaneous heights
-        diameters = []  # store instantaneous diameters
-
-        for row in df.index:
-            u = df.at[row, 'v'] / 100.0  # convert velocity unit to m/s
-            velocities.append(u)
-            amc = df.at[row, 'am'] / 100.0
-            accelerations.append(amc)
-            d_h = dim(df.at[row, 're'], u, df.at[row, 'f'])  # re: m^2/s / m^2/s, fineness: m/m
-            diameters.append(d_h[0])
-            heights.append(d_h[1])
-
-        df["v"] = velocities
-        df["am"] = accelerations
-        df["h"] = heights
-        df["d"] = diameters
+    #  delete the deletable columns
+    if to_delete:
+        df_ref.drop(to_delete, axis=1, inplace=True)
 
 
 ######################################################################
-# find the modeled thrust force based on the modeled acceleration
-# derived by the basic measurements
+# add/adjust instantaneous heights, diameters, and velocities and
+# accelerations in the corrected units
 ######################################################################
-def mod_thrust(dfs_ref):
-    for df in dfs_ref:
-        volumes = []  # store instantaneous volumes
-        masses = []  # store instantaneous masses
-        # orifices = []  # store instantaneous orifices
-        drags = []  # store instantaneous drags
-        net_forces = []  # store instantaneous net_forces
-        thrusts = []  # store instantaneous thrusts
+def basics(df_ref):
+    # f_col = ''
+    # vel_col = ''
+    # re_col = ''
+    #
+    # for column in df.columns:
+    #     if re.search(r'f', column):
+    #         f_col = re.search(r'f', column).string
+    #         # print(f_col)
+    #     if re.search(r'v', column):
+    #         vel_col = re.search(r'v', column).string
+    #         # print(vel_col)
+    #     if re.search(r're', column):
+    #         re_col = re.search(r're', column).string
+    #         # print(re_col)
+    accelerations_o = []  # store instantaneous accelerations in converted units
+    accelerations_m = []  # store instantaneous accelerations in converted units
+    velocities = []  # store instantaneous velocities in converted units
+    heights = []  # store instantaneous heights
+    diameters = []  # store instantaneous diameters
 
-        for row in df.index:
-            h = df.at[row, 'h']
-            d = df.at[row, 'd']
-            am = df.at[row, 'am']
-            r = df.at[row, 're']
-            u = df.at[row, 'v']
-            volumes.append(vol(h, d))
-            masses.append(mas(h, d))
-            net_forces.append(nfr_m(h, d, am))
-            drags.append(drg(r, h, d, u))
-            thrusts.append(thr_m(h, d, am, r, u))
+    for row in df_ref.index:
+        aoc = df_ref.at[row, 'ao'] / 100.0
+        accelerations_o.append(aoc)
+        amc = df_ref.at[row, 'am'] / 100.0
+        accelerations_m.append(amc)
+        u = df_ref.at[row, 'v'] / 100.0  # convert velocity unit to m/s
+        velocities.append(u)
+        d_h = dim(df_ref.at[row, 're'], u, df_ref.at[row, 'f'])  # re: m^2/s / m^2/s, fineness: m/m
+        diameters.append(d_h[0])
+        heights.append(d_h[1])
 
-        df["vol"] = volumes
-        df["mass"] = masses
-        df["modeled_net"] = net_forces
-        df["drag"] = drags
-        df["modeled thrust"] = thrusts
+    df_ref["ao"] = accelerations_o
+    df_ref["am"] = accelerations_m
+    df_ref["v"] = velocities
+    df_ref["h"] = heights
+    df_ref["d"] = diameters
 
 
 ######################################################################
 # find the modeled thrust force based on the modeled acceleration
 # derived by the basic measurements
 ######################################################################
-def subumbrellar_to_bell(dfs_ref, ori_ref):
-    count = 0
-    for df in dfs_ref:
-        dSdt = []
-        dVdt = []
-        dSdV = []  # store instantaneous volumes
-        dV = []
-        dS = []
+def mod_thrust(df_ref):
+    volumes = []  # store instantaneous volumes
+    masses = []  # store instantaneous masses
+    drags = []  # store instantaneous drags
+    net_forces = []  # store instantaneous net_forces
+    thrusts = []  # store instantaneous thrusts
 
-        thrust = ""
-        for column in df.columns:
-            if re.search(r'thrust', column):
-                thrust = re.search(r'thrust', column).string
-        for row in (list(range(len(df.index)-1))):
-            f = df.at[row, thrust]
-            v1 = df.at[row, 'vol']
-            v2 = df.at[row+1, 'vol']
-            t = df.at[0, 'st']
-            dVdt.append((v2 - v1) / t)
-            if (v2 - v1) / t < 0:
-                dSdt.append(-1 * np.sqrt(ori_ref[count] / sea_den * f))
-            else:
-                dSdt.append(np.sqrt(ori_ref[count] / sea_den * f))
-            SV = dsdv(f, ori_ref[count], v1, v2, t)
-            dSdV.append(SV)
-            dV.append(v2-v1)
-            dS.append(SV * (v2-v1))
+    for row in df_ref.index:
+        am = df_ref.at[row, 'am']
+        v = df_ref.at[row, 'v']
+        r = df_ref.at[row, 're']
+        h = df_ref.at[row, 'h']
+        d = df_ref.at[row, 'd']
+        volumes.append(vol(h, d))
+        masses.append(mas(h, d))
+        net_forces.append(nfr_m(h, d, am))
+        drags.append(drg(r, h, d, v))
+        thrusts.append(thr_m(h, d, am, r, v))
 
-        dVdt.append(0)
-        dSdt.append(0)
-        dSdV.append(0)
-        dV.append(0)
-        dS.append(0)
+    df_ref["V"] = volumes
+    # df_ref["m"] = masses
+    # df_ref["nfm"] = net_forces
+    # df_ref["drg"] = drags
+    df_ref["tm"] = thrusts
 
-        # df["dVdt"] = dVdt
-        df["dSdt"] = dSdt
-        # df["dSdV"] = dSdV
-        df["dV"] = dV
-        df["dS"] = dS
 
-        count += 1
+######################################################################
+# find the modeled thrust force based on the modeled acceleration
+# derived by the basic measurements
+######################################################################
+def subumbrellar_to_bell(df_ref, ori_ref):
+    thrust = ""
+    dSdt = []  # store instantaneous dSdt
+    dVdt = []  # store instantaneous dVdt
+    dSdV = []  # store instantaneous dSdV
+    dV = []  # store instantaneous dV
+    dS = []  # store instantaneous dS
+
+    for column in df_ref.columns:
+        if re.search(r'tm', column):
+            thrust = re.search(r'tm', column).string
+    for row in (list(range(len(df_ref.index) - 1))):
+        t = df_ref.at[0, 'st']
+        v1 = df_ref.at[row, 'V']
+        v2 = df_ref.at[row + 1, 'V']
+        dV.append(v2 - v1)
+        dVdt.append((v2 - v1) / t)
+        f = df_ref.at[row, thrust]
+        if v1 > v2:
+            dSdt.append(-1 * np.sqrt(ori_ref / sea_den * f))
+        else:
+            dSdt.append(np.sqrt(ori_ref / sea_den * f))
+        SV = dsdv(f, ori_ref, v1, v2, t)
+        dSdV.append(SV)
+        dS.append(SV * (v2 - v1))
+
+    dV.append(0)
+    dS.append(0)
+    dVdt.append(0)
+    dSdt.append(0)
+    dSdV.append(0)
+
+    df_ref["dV"] = dV
+    df_ref["dS"] = dS
+    # df_ref["dVdt"] = dVdt
+    # df_ref["dSdt"] = dSdt
+    # df_ref["dSdV"] = dSdV
 
 
 ######################################################################
