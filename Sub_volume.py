@@ -2,9 +2,11 @@ import pandas as pd
 import numpy as np
 import re
 from matplotlib import pyplot as plt
+from matplotlib.pyplot import figtext
 import csv
 
 # global variables
+
 
 f_path = "/Users/beelee/PycharmProjects/OblateThrust/csv/"
 s_sp_f = f_path + "s_sp_data.csv"
@@ -24,14 +26,13 @@ def main():
     p_gregarium = pd.read_csv(p_gregarium_f)
     # group the two medusae of interest for easy access
     dfs = [s_sp, p_gregarium]
+    name = ['s.sp', 'p.gregarium']
 
     # s_sp: 0.85cm diameter, p_gregarium: 2.14cm diameter (Colin & Costello, 2001)
     s_sp_ori = ori(0.85 / 100)
     p_gregarium_ori = ori(2.14 / 100)
     # group the two constant orifice areas for easy access
     oris = [s_sp_ori, p_gregarium_ori]
-
-
 
     # clean up dataframes
     # a_digitale.dropna(axis=0, how='any', inplace=True)  # drop incomplete rows for the prolate medusae
@@ -41,68 +42,21 @@ def main():
     #     index_no = dfs_2001[0].columns.get_loc(column)
     #     if index_no == 5 or index_no == 6:
     #         dfs_2001[0][column] = dfs_2001[0][column].shift(-1)
+    count = 0
     for (df, o) in zip(dfs, oris):
         clean_time(df)
         basics(df)
         mod_thrust(df)
         subumbrellar_to_bell(df, o)
-        print(df)
-
-    # # am and ao align as shown in Fig. 5 Colin & Costello, 2001
-    # for df in dfs:
-    #     plt.plot(df["st"], df["am"])
-    #     plt.plot(df["st"], df["ao"])
-    #     plt.xlabel("time s")
-    #     plt.ylabel("acceleration")
-    #     plt.tight_layout()
-    #     plt.show()
-
-    # split and align pulsations data for each medusae
-    s_sp_1 = s_sp[1:13].copy()
-    s_sp_1["st"] = s_sp_1["st"] - (s_sp["st"][0] + s_sp["st"][1])/2
-    s_sp_2 = s_sp[12:25].copy()
-    s_sp_2["st"] = s_sp_2["st"] - s_sp["st"][12]
-    s_sp_3 = s_sp[24:36].copy()
-    s_sp_3["st"] = s_sp_3["st"] - (s_sp["st"][23] + s_sp["st"][24])/2
-    s_sp_4 = s_sp[35:45].copy()
-    s_sp_4["st"] = s_sp_4["st"] - (s_sp["st"][33] + s_sp["st"][34])/2
-    s_sps = [s_sp_1, s_sp_2, s_sp_3, s_sp_4]
-
-    p_gregarium_1 = p_gregarium[1:6].copy()
-    p_gregarium_1["st"] = p_gregarium_1["st"] - p_gregarium["st"][1]
-    p_gregarium_2 = p_gregarium[5:9].copy()
-    p_gregarium_2["st"] = p_gregarium_2["st"] - (p_gregarium["st"][4] + p_gregarium["st"][5])/2
-    p_gregarium_3 = p_gregarium[8:13].copy()
-    p_gregarium_3["st"] = p_gregarium_3["st"] - p_gregarium["st"][8]
-    p_gregarium_4 = p_gregarium[12:17].copy()
-    p_gregarium_4["st"] = p_gregarium_4["st"] - p_gregarium["st"][12]
-    p_gregariums = [p_gregarium_1, p_gregarium_2, p_gregarium_3, p_gregarium_4]
-    dfss = [s_sps, p_gregariums]
-
-    medusae = ['prolate medusae a.digitale', 'oblate medusae p.gregarium']
-    dfs_count = 0
-    for dfs in dfss:
-        total_x = np.array([])
-        total_y = np.array([])
-        colors = ['goldenrod', 'firebrick', 'forestgreen', 'dodgerblue']
-        df_count = 0
-        for df in dfs:
-            label = "cycle #" + str(df_count+1)
-            plt.plot(df["st"], df["V"], color=colors[df_count], label=label)
-            total_x = np.append(total_x, df["st"].values)
-            total_y = np.append(total_y, df["V"].values)
-            df_count += 1
-        polymodel1 = np.poly1d(np.polyfit(total_x, total_y, 3))
-        polyline1 = np.linspace(min(total_x), max(total_x), 100)
-        plt.plot(polyline1, polymodel1(polyline1), color='magenta', linestyle='--', label='p(3) regression')
-        plt.title("%s bell volume over 1 pulsation cycle" % (medusae[dfs_count]))
-        plt.legend()
+        plt.title("modeled %s thrust over 4 cycles by published model" % name[count])
+        plt.plot(df["st"], df["tm"])
         plt.xlabel("time s")
-        plt.ylabel("volume m^3")
+        plt.ylabel("thrust g*m*s^-2")
         plt.tight_layout()
         plt.show()
+        count +=1
 
-        dfs_count += 1
+    dfss = [split_sp(dfs[0]), split_gregarium(dfs[1])]
 
     dfs_count = 0
     for dfs in dfss:
@@ -111,40 +65,81 @@ def main():
         for df in dfs:
             total_x = np.append(total_x, df["dV"].values)
             total_y = np.append(total_y, df["dS"].values)
-        polymodel2 = np.poly1d(np.polyfit(total_x, total_y, 2))
-        polyline2 = np.linspace(min(total_x), max(total_x), 100)
         plt.scatter(total_x, total_y)
-        plt.plot(polyline2, polymodel2(polyline2), label='dV to dS regression')
-        plt.title("change of %s subumbrellar volume with respect to change of bell volume" % (medusae[dfs_count]))
+        r = np.corrcoef(total_x, total_y)
+        polymodel = np.poly1d(np.polyfit(total_x, total_y, 1))
+        m, b = polymodel
+        polyline = np.linspace(min(total_x), max(total_x), 100)
+        plt.plot(polyline, polymodel(polyline), label='dV to dS regression')
+        plt.title("change of %s subumbrellar volume with respect to change of bell volume" % (name[dfs_count]))
+        # chisq = sum(np.power((total_y - polymodel2(total_x)), 2)/polymodel2(total_x))
+        figtext(0.15, 0.8, "r: %.2f" % r[0, 1])
+        figtext(0.15, 0.75, "line: %.3f x + %.2E" % (m, b))
         plt.legend()
         plt.xlabel("dV")
         plt.ylabel("dS")
         plt.tight_layout()
         plt.show()
-
-        print(polymodel2)
         dfs_count += 1
 
-    dfs_count = 0
-    for dfs in dfss:
-        total_x = np.array([])
-        total_y = np.array([])
-        for df in dfs:
-            total_x = np.append(total_x, df["st"].values)
-            total_y = np.append(total_y, df["tm"].values)
-        polymodel3 = np.poly1d(np.polyfit(total_x, total_y, 2))
-        polyline3 = np.linspace(min(total_x), max(total_x), 100)
-        plt.scatter(total_x, total_y)
-        plt.plot(polyline3, polymodel3(polyline3), label='thrust regression')
-        plt.title("modeled thrust of %s over time" % (medusae[dfs_count]))
-        plt.legend()
-        plt.xlabel("time s")
-        plt.ylabel("thrust g * m *s^-2")
-        plt.tight_layout()
-        plt.show()
+    # colors = ['goldenrod', 'firebrick', 'forestgreen', 'dodgerblue']
+    # dfs_count = 0
+    # for dfs in dfss:
+    #     total_x = np.array([])
+    #     total_y = np.array([])
+    #
+    #     df_count = 0
+    #     for df in dfs:
+    #         label = "cycle #" + str(df_count + 1)
+    #         plt.plot(df["st"], df["tm"], color=colors[df_count], label=label)
+    #         # total_x = np.append(total_x, df["st"].values)
+    #         # total_y = np.append(total_y, df["tm"].values)
+    #         df_count += 1
+    #     # polymodel3 = np.poly1d(np.polyfit(total_x, total_y, 7))
+    #     # polyline3 = np.linspace(min(total_x), max(total_x), 100)
+    #     # plt.scatter(total_x, total_y)
+    #     # plt.plot(polyline3, polymodel3(polyline3), label='thrust regression')
+    #     plt.title("modeled thrust of %s over time" % (name[dfs_count]))
+    #     plt.legend()
+    #     plt.xlabel("time s")
+    #     plt.ylabel("thrust g * m *s^-2")
+    #     plt.tight_layout()
+    #     plt.show()
+    #
+    #     dfs_count += 1
 
-        dfs_count += 1
 
+######################################################################
+# split s_sp dataframe into 4 based on volume
+# param: df
+######################################################################
+def split_sp(df_ref):
+    ref_1 = df_ref[3:13].copy()
+    ref_1['st'] = np.arange(0, df_ref.at[9, 'st']+0.05, df_ref.at[9, 'st'] / 9)
+    ref_2 = df_ref[13:26].copy()
+    ref_2['st'] = np.arange(0, df_ref.at[9, 'st']+0.05, df_ref.at[9, 'st'] / 12)
+    ref_3 = df_ref[26:36].copy()
+    ref_3['st'] = np.arange(0, df_ref.at[9, 'st']+0.05, df_ref.at[9, 'st'] / 9)
+    ref_4 = df_ref[36:45].copy()
+    ref_4['st'] = np.arange(0, df_ref.at[9, 'st']+0.05, df_ref.at[9, 'st'] / 8)
+
+    return [ref_1, ref_2, ref_3, ref_4]
+
+
+######################################################################
+# split p_gregarium dataframe into 4 based on volume
+# param: df
+######################################################################
+def split_gregarium(df_ref):
+    ref_1 = df_ref[2:5].copy()
+    ref_1['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 2)
+    ref_2 = df_ref[5:9].copy()
+    ref_2['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 3)
+    ref_3 = df_ref[9:13].copy()
+    ref_3['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 3)
+    ref_4 = df_ref[13:17].copy()
+    ref_4['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 3)
+    return [ref_1, ref_2, ref_3, ref_4]
 
 ######################################################################
 # clean up dataframe to show just 1 equivalent time reference
