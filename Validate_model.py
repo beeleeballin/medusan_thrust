@@ -37,25 +37,40 @@ def main():
     copy_model(dfs, oris, name)
     dfss = [split_sp(dfs[0]), split_gregarium(dfs[1])]
 
+    colors = ['goldenrod', 'firebrick', 'forestgreen', 'dodgerblue']
     dfs_count = 0
     for dfs in dfss:
         total_x = np.array([])
         total_y = np.array([])
+        df_count = 0
+        for df in dfs:
+            label = "cycle #" + str(df_count + 1)
+            plt.plot(df["st"], df["V"], color=colors[df_count], label=label)
+            total_x = np.append(total_x, df["st"].values)
+            total_y = np.append(total_y, df["V"].values)
+            df_count += 1
+        polymodel1 = np.poly1d(np.polyfit(total_x, total_y, 2))
+        polyline1 = np.linspace(min(total_x), max(total_x), 100)
+        plt.plot(polyline1, polymodel1(polyline1), color='magenta', linestyle='--', label='p(2) regression')
+        plt.title("modeled %s bell volume per cycle" % (name[dfs_count]))
+        plt.legend()
+        plt.xlabel("time s")
+        plt.ylabel("volume m^3")
+        plt.tight_layout()
+        plt.show()
 
+        dfs_count += 1
+
+    dfs_count = 0
+    for dfs in dfss:
         df_count = 0
         for df in dfs:
             label = " #" + str(df_count + 1)
-            # plt.plot(df["st"], df["ao"], color='goldenrod', label=("observed"+label))
-            plt.plot(df["st"], df["am"], color='firebrick', label=("published"+label))
-            plt.plot(df["st"], df["ac"], color='forestgreen', label=("modeled"+label))
-            # total_x = np.append(total_x, df["st"].values)
-            # total_y = np.append(total_y, df["tm"].values)
+            plt.plot(df["st"], df["am"], color='firebrick', label=("published" + label))
+            plt.plot(df["st"], df["ac"], color='forestgreen', label=("modeled" + label))
+            plt.plot(df["st"], df["ao"], color='goldenrod', label=("observed" + label))
             df_count += 1
-        # polymodel3 = np.poly1d(np.polyfit(total_x, total_y, 7))
-        # polyline3 = np.linspace(min(total_x), max(total_x), 100)
-        # plt.scatter(total_x, total_y)
-        # plt.plot(polyline3, polymodel3(polyline3), label='thrust regression')
-        plt.title("modeled acceleration of %s over time" % (name[dfs_count]))
+        plt.title("modeled %s per cycle acceleration by published model matches published data" % (name[dfs_count]))
         plt.legend()
         plt.xlabel("time s")
         plt.ylabel("acceleration m * s^-2")
@@ -64,26 +79,65 @@ def main():
 
         dfs_count += 1
 
+    # dfs_count = 0
+    # for dfs in dfss:
+    #     acc_per_cycle = np.empty([4, 3])
+    #     df_count = 0
+    #     for df in dfs:
+    #         acc_per_cycle[df_count][0] = sum(df["am"])/len(df.index)
+    #         acc_per_cycle[df_count][1] = sum(df["ac"])/len(df.index)
+    #         acc_per_cycle[df_count][2] = sum(df["ao"])/len(df.index)
+    #         df_count += 1
+    #     labels = ['published', 'corrected', 'observed']
+    #     plt.xlabel('3 acceleration outputs')
+    #     plt.ylabel('acceleration per cycle m*s^-2')
+    #     plt.title('modeled %s average acceleration by published model' % name[dfs_count])
+    #     plt.xticks(range(3), labels)
+    #     width = 0.2
+    #     plt.bar(np.arange(3), acc_per_cycle[0], width=width, label='cycle #1')
+    #     plt.bar(np.arange(3) + width, acc_per_cycle[1], width=width, label='cycle #2')
+    #     plt.bar(np.arange(3) + 2*width, acc_per_cycle[2], width=width, label='cycle #3')
+    #     plt.bar(np.arange(3) + 3*width, acc_per_cycle[3], width=width, label='cycle #4')
+    #     plt.legend()
+    #     plt.show()
+    #     dfs_count += 1
+
+    # acc = np.zeros([3])
+    # acc[0] = sum(p_gregarium["am"]) / len(p_gregarium.index)
+    # acc[1] = sum(p_gregarium["ac"]) / len(p_gregarium.index)
+    # acc[2] = sum(p_gregarium["ao"]) / len(p_gregarium.index)
+    # labels = ['published', 'corrected', 'observed']
+    # plt.xlabel('3 acceleration outputs')
+    # plt.ylabel('acceleration per cycle m*s^-2')
+    # plt.title('p_gregarium average acceleration by published model')
+    # plt.xticks(range(3), labels)
+    # width = 0.5
+    # plt.bar(np.arange(3), acc, width=width, label='average acceleration')
+    # plt.show()
+
     dfs_count = 0
     for dfs in dfss:
         acc_per_cycle = np.empty([4, 3])
         df_count = 0
         for df in dfs:
-            acc_per_cycle[df_count][0] = sum(df["am"])
-            acc_per_cycle[df_count][1] = sum(df["ac"])
-            acc_per_cycle[df_count][2] = sum(df["ao"])
-            # print(("am %f, ac %f, ao %f") % (sum(df["am"]), sum(df["ac"]), sum(df["ao"])))
+            acc_per_cycle[df_count][0] = max(df["am"])
+            acc_per_cycle[df_count][1] = max(df["ac"])
+            acc_per_cycle[df_count][2] = max(df["ao"])
             df_count += 1
+        means = [np.mean(acc_per_cycle[:, 0]), np.mean(acc_per_cycle[:, 1]), np.mean(acc_per_cycle[:, 2])]
+        errors = [np.std(acc_per_cycle[:, 0])/2, np.std(acc_per_cycle[:, 1])/2, np.std(acc_per_cycle[:, 2])/2]
         labels = ['published', 'corrected', 'observed']
-        plt.xlabel('acceleration references')
-        plt.ylabel('acceleration per cycle')
-        plt.title('acceleration per cycle for %s' % name[dfs_count])
+        plt.xlabel('3 acceleration outputs')
+        plt.ylabel('max acceleration in every cycle m*s^-2')
+        plt.title('%s maximum acceleration per cycle by improved model' % name[dfs_count])
         plt.xticks(range(3), labels)
-        width = 0.2
-        plt.bar(np.arange(3), acc_per_cycle[0], width=width)
-        plt.bar(np.arange(3) + width, acc_per_cycle[1], width=width)
-        plt.bar(np.arange(3) + 2*width, acc_per_cycle[2], width=width)
-        plt.bar(np.arange(3) + 3*width, acc_per_cycle[3], width=width)
+        width = 0.15
+        plt.bar(np.arange(3), acc_per_cycle[0], width=width, label='cycle #1')
+        plt.bar(np.arange(3) + width, acc_per_cycle[1], width=width, label='cycle #2')
+        plt.bar(np.arange(3) + 2 * width, acc_per_cycle[2], width=width, label='cycle #3')
+        plt.bar(np.arange(3) + 3 * width, acc_per_cycle[3], width=width, label='cycle #4')
+        plt.bar(np.arange(3) + 4 * width, means, yerr=errors, width=width, label='average')
+        plt.legend()
         plt.show()
 
         dfs_count += 1
@@ -94,49 +148,82 @@ def main():
     improved_model(p_gregarium)
     dfs = split_gregarium(p_gregarium)
 
-    total_x = np.array([])
-    total_y = np.array([])
-
     df_count = 0
     for df in dfs:
-        label = " #" + str(df_count + 1)
-        plt.plot(df["st"], df["ao"], color='goldenrod', label=("observed"+label))
-        plt.plot(df["st"], df["am"], color='firebrick', label=("published"+label))
-        plt.plot(df["st"], df["ac"], color='forestgreen', label=("corrected"+label))
-        # total_x = np.append(total_x, df["st"].values)
-        # total_y = np.append(total_y, df["tm"].values)
+        label = " cycle #" + str(df_count + 1)
+        plt.plot(df["st"], df["ao"], color='firebrick', label=("observed"+label))
+        plt.plot(df["st"], df["am"], color='firebrick', linestyle='--', label=("published"+label))
+        plt.plot(df["st"], df["ac"], color='forestgreen', linestyle='--', label=("corrected"+label))
         df_count += 1
-    # polymodel3 = np.poly1d(np.polyfit(total_x, total_y, 7))
-    # polyline3 = np.linspace(min(total_x), max(total_x), 100)
-    # plt.scatter(total_x, total_y)
-    # plt.plot(polyline3, polymodel3(polyline3), label='thrust regression')
-    plt.title("modeled acceleration of p_gregarium over time")
+    plt.title("modeled p_gregarium acceleration per cycle by improved model")
     plt.legend()
     plt.xlabel("time s")
     plt.ylabel("acceleration m * s^-2")
     plt.tight_layout()
     plt.show()
 
+    # acc_per_cycle = np.empty([4, 3])
+    # acc = np.zeros([3])
+    # df_count = 0
+    # for df in dfs:
+    #     acc_per_cycle[df_count][0] = sum(df["am"])/len(df.index)
+    #     acc_per_cycle[df_count][1] = sum(df["ac"])/len(df.index)
+    #     acc_per_cycle[df_count][2] = sum(df["ao"])/len(df.index)
+    #     acc[0] += sum(df["am"]) / len(df.index)
+    #     acc[1] += sum(df["ac"]) / len(df.index)
+    #     acc[2] += sum(df["ao"]) / len(df.index)
+    #     df_count += 1
+    # labels = ['published', 'corrected', 'observed']
+    # plt.xlabel('3 acceleration outputs')
+    # plt.ylabel('acceleration per cycle m*s^-2')
+    # plt.title('p_gregarium average acceleration by improved model')
+    # plt.xticks(range(3), labels)
+    # width = 0.15
+    # plt.bar(np.arange(3), acc_per_cycle[0], width=width, label='cycle #1')
+    # plt.bar(np.arange(3) + width, acc_per_cycle[1], width=width, label='cycle #2')
+    # plt.bar(np.arange(3) + 2*width, acc_per_cycle[2], width=width, label='cycle #3')
+    # plt.bar(np.arange(3) + 3*width, acc_per_cycle[3], width=width, label='cycle #4')
+    # plt.bar(np.arange(3) + 4*width, acc/4, width=width, label='average')
+    # plt.legend()
+    # plt.show()
+
+    # acc = np.zeros([3])
+    # acc[0] = sum(p_gregarium["am"]) / len(p_gregarium.index)
+    # acc[1] = sum(p_gregarium["ac"]) / len(p_gregarium.index)
+    # acc[2] = sum(p_gregarium["ao"]) / len(p_gregarium.index)
+    # labels = ['published', 'corrected', 'observed']
+    # plt.xlabel('3 acceleration outputs')
+    # plt.ylabel('acceleration per cycle m*s^-2')
+    # plt.title('p_gregarium average acceleration by improved model')
+    # plt.xticks(range(3), labels)
+    # width = 0.5
+    # plt.bar(np.arange(3), acc, width=width, label='average acceleration')
+    # plt.show()
+
     acc_per_cycle = np.empty([4, 3])
-    print(acc_per_cycle)
     df_count = 0
     for df in dfs:
-        acc_per_cycle[df_count][0] = sum(df["am"])
-        acc_per_cycle[df_count][1] = sum(df["ac"])
-        acc_per_cycle[df_count][2] = sum(df["ao"])
-        # print(("am %f, ac %f, ao %f") % (sum(df["am"]), sum(df["ac"]), sum(df["ao"])))
+        acc_per_cycle[df_count][0] = max(df["am"])
+        acc_per_cycle[df_count][1] = max(df["ac"])
+        acc_per_cycle[df_count][2] = max(df["ao"])
         df_count += 1
+    means = [np.mean(acc_per_cycle[:, 0]), np.mean(acc_per_cycle[:, 1]), np.mean(acc_per_cycle[:, 2])]
+    errors = [np.std(acc_per_cycle[:, 0]) / 2, np.std(acc_per_cycle[:, 1]) / 2, np.std(acc_per_cycle[:, 2]) / 2]
     labels = ['published', 'corrected', 'observed']
-    plt.xlabel('acceleration references')
-    plt.ylabel('acceleration per cycle')
-    plt.title('acceleration per cycle for p_gregarium')
+    plt.xlabel('3 acceleration outputs')
+    plt.ylabel('max acceleration in every cycle m*s^-2')
+    plt.title('p_gregarium maximum acceleration per cycle by improved model')
     plt.xticks(range(3), labels)
-    width = 0.2
-    plt.bar(np.arange(3), acc_per_cycle[0], width=width)
-    plt.bar(np.arange(3)+width, acc_per_cycle[1], width=width)
-    plt.bar(np.arange(3) + 2*width, acc_per_cycle[2], width=width)
-    plt.bar(np.arange(3) + 3*width, acc_per_cycle[3], width=width)
+    width = 0.15
+    plt.bar(np.arange(3), acc_per_cycle[0], width=width, label='cycle #1')
+    plt.bar(np.arange(3) + width, acc_per_cycle[1], width=width, label='cycle #2')
+    plt.bar(np.arange(3) + 2 * width, acc_per_cycle[2], width=width, label='cycle #3')
+    plt.bar(np.arange(3) + 3 * width, acc_per_cycle[3], width=width, label='cycle #4')
+    plt.bar(np.arange(3) + 4 * width, means, yerr=errors, width=width, label='average')
+    plt.legend()
     plt.show()
+
+
 
 
 ######################################################################
@@ -153,8 +240,8 @@ def copy_model(dfs_ref, oris_ref, name_ref):
         df.drop(df.tail(1).index, inplace=True)
         plt.plot(df["st"], df["ac"], label='modeled acceleration')
         plt.plot(df["st"], df["am"], label='published acceleration')
-        # plt.plot(df["st"], df["ao"], label='observed acceleration')
-        plt.title("%s acceleration over time" % name_ref[count])
+        plt.plot(df["st"], df["ao"], label='observed acceleration')
+        plt.title("modeled %s acceleration over 4 cycles by published model matches published data" % name_ref[count])
         plt.legend()
         plt.xlabel("time s")
         plt.ylabel("acceleration m/s^2")
@@ -177,9 +264,9 @@ def improved_model(df):
 
 
     plt.plot(df["st"], df["ac"], label='modeled acceleration')
-    # plt.plot(df["st"], df["am"], label='published acceleration')
+    plt.plot(df["st"], df["am"], label='published acceleration')
     plt.plot(df["st"], df["ao"], label='observed acceleration')
-    plt.title("p_gregarium acceleration over time")
+    plt.title("modeled p_gregarium acceleration over 4 cycles by improved model is closes gap with observed model")
     plt.legend()
     plt.xlabel("time s")
     plt.ylabel("acceleration m/s^2")
@@ -192,14 +279,15 @@ def improved_model(df):
 # param: df
 ######################################################################
 def split_sp(df_ref):
-    ref_1 = df_ref[1:13].copy()
-    ref_1["st"] = ref_1["st"] - (df_ref["st"][0] + df_ref["st"][1]) / 2
-    ref_2 = df_ref[12:25].copy()
-    ref_2["st"] = ref_2["st"] - df_ref["st"][12]
-    ref_3 = df_ref[24:36].copy()
-    ref_3["st"] = ref_3["st"] - (df_ref["st"][23] + df_ref["st"][24]) / 2
-    ref_4 = df_ref[35:45].copy()
-    ref_4["st"] = ref_4["st"] - (df_ref["st"][33] + df_ref["st"][34]) / 2
+    ref_1 = df_ref[3:13].copy()
+    ref_1['st'] = np.arange(0, df_ref.at[9, 'st']+0.05, df_ref.at[9, 'st'] / 9)
+    ref_2 = df_ref[13:26].copy()
+    ref_2['st'] = np.arange(0, df_ref.at[9, 'st']+0.05, df_ref.at[9, 'st'] / 12)
+    ref_3 = df_ref[26:36].copy()
+    ref_3['st'] = np.arange(0, df_ref.at[9, 'st']+0.05, df_ref.at[9, 'st'] / 9)
+    ref_4 = df_ref[36:45].copy()
+    ref_4['st'] = np.arange(0, df_ref.at[9, 'st']+0.05, df_ref.at[9, 'st'] / 8)
+
     return [ref_1, ref_2, ref_3, ref_4]
 
 
@@ -208,14 +296,14 @@ def split_sp(df_ref):
 # param: df
 ######################################################################
 def split_gregarium(df_ref):
-    ref_1 = df_ref[1:6].copy()
-    ref_1["st"] = ref_1["st"] - df_ref["st"][1]
+    ref_1 = df_ref[2:5].copy()
+    ref_1['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 2)
     ref_2 = df_ref[5:9].copy()
-    ref_2["st"] = ref_2["st"] - (df_ref["st"][4] + df_ref["st"][5]) / 2
-    ref_3 = df_ref[8:13].copy()
-    ref_3["st"] = ref_3["st"] - df_ref["st"][8]
-    ref_4 = df_ref[12:17].copy()
-    ref_4["st"] = ref_4["st"] - df_ref["st"][12]
+    ref_2['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 3)
+    ref_3 = df_ref[9:13].copy()
+    ref_3['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 3)
+    ref_4 = df_ref[13:17].copy()
+    ref_4['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 3)
     return [ref_1, ref_2, ref_3, ref_4]
 
 
