@@ -22,157 +22,170 @@ sea_vis = np.power(10.0, -6)  # m^2/s
 
 
 ######################################################################
-# task 2: model accurate oblate medusae acceleration
+# TASK 3:
+# to build MODEL2, an improvement model designed to estimate acceleration
+# of oblate medusae, and compare the new estimates to the observed
+# values published in the article. the auxillary model and another
+# calculation adjustment are implemented. MODEL2 is examined for its
+# acceleration over time estimate and maximum thrusts.
+# RESULT:
+# while the test results for 1 oblate medusae were favorable, the other
+# 2 were not. a new approach is needed.
 ######################################################################
 def main():
     # import pre-cleaned up csv files, 3 oblates
-    a_digitale = pd.read_csv(a_digitale_f)
-    s_sp = pd.read_csv(s_sp_f)
-    p_flavicirrata = pd.read_csv(p_flavicirrata_f)
+    # a_digitale = pd.read_csv(a_digitale_f)
+    # s_sp = pd.read_csv(s_sp_f)
+    # p_flavicirrata = pd.read_csv(p_flavicirrata_f)
     # import pre-cleaned up csv files, 3 oblates
     a_victoria = pd.read_csv(a_victoria_f)
     m_cellularia = pd.read_csv(m_cellularia_f)
     p_gregarium = pd.read_csv(p_gregarium_f)
     # group the medusa of interest for easy access
-    dfs = [a_digitale, s_sp, p_flavicirrata, a_victoria, m_cellularia, p_gregarium]
-    name = ["a_digitale", "s_sp", "p_flavicirrata", "a_victoria", "m_cellularia", "p_gregarium"]
+    dfs = [a_victoria, m_cellularia, p_gregarium]  # a_digitale, s_sp, p_flavicirrata,
+    name = ["a_victoria", "m_cellularia", "p_gregarium"] #"a_digitale", "s_sp", "p_flavicirrata",
 
     # oris= [(ori(0.83 / 100)), (ori(0.85 / 100)), (ori(0.56 / 100)),
     #              (ori(5 / 100)), (ori(6.5 / 100)), (ori(2.14 / 100))]
 
     improved_model(dfs, name)
 
-    dfss = [split_victoria(dfs[3]), split_cellularia(dfs[4]), split_gregarium(dfs[5])]
-
-
-    medusae = ['a.victoria', 'm.cellularia', 'p.gregarium']
-    dfs_count = 0
-    for dfs in dfss:
-        total_x = np.array([])
-        total_y = np.array([])
-        colors = ['goldenrod', 'firebrick', 'forestgreen', 'dodgerblue']
-        df_count = 0
-        for df in dfs:
-            label = "cycle #" + str(df_count + 1)
-            plt.plot(df["st"], df["V"], color=colors[df_count], label=label)
-            total_x = np.append(total_x, df["st"].values)
-            total_y = np.append(total_y, df["V"].values)
-            df_count += 1
-        input_regression = [('polynomial', PolynomialFeatures(degree=2)), ('modal', LinearRegression())]
-        pipe = Pipeline(input_regression)
-        pipe.fit(total_x.reshape(-1, 1), total_y.reshape(-1, 1))
-        poly_pred = pipe.predict(total_x.reshape(-1, 1))
-        sorted_zip = sorted(zip(total_x, poly_pred))
-        x_poly, poly_pred = zip(*sorted_zip)
-        reg_label = ('RMSE %f' % np.sqrt(mean_squared_error(x_poly, poly_pred)))
-        plt.plot(x_poly, poly_pred, color='magenta', linestyle='--', label=reg_label)
-        plt.title("%s bell volume over 1 pulsation cycle" % (medusae[dfs_count]))
+    df_count = 0
+    for df in dfs:
+        plt.plot(df["st"], df["ac"], label='modeled acceleration')
+        plt.plot(df["st"], df["ao"], label='observed acceleration')
+        plt.title("%s acceleration estimates by MODEL2 and the published model" % name[df_count])
         plt.legend()
         plt.xlabel("time s")
-        plt.ylabel("volume m^3")
+        plt.ylabel("acceleration m/s^2")
         plt.tight_layout()
         plt.show()
-        dfs_count += 1
+        df_count += 1
+
+    dfss = [split_victoria(dfs[0]), split_cellularia(dfs[1]), split_gregarium(dfs[2])]
 
     for dfs in dfss:
         for df in dfs:
             for row in df.index:
-                # print("row %i value %f" % (row, df.loc[row, 'am']))
-                if df.loc[row, 'ac'] > 100:
-                    # print("row %i value %f" % (row, df.loc[row, 'am']))
+                if df.loc[row, 'ac'] > 1:
                     df.drop(row, inplace=True)
 
     dfs_count = 0
     for dfs in dfss:
-        total_x = np.array([])
-        total_y = np.array([])
-        colors = ['goldenrod', 'firebrick', 'forestgreen', 'dodgerblue']
+        acc_per_cycle = np.empty([4, 2])
         df_count = 0
         for df in dfs:
-            label = "cycle #" + str(df_count + 1)
-            plt.plot(df["st"], df["tm"], color=colors[df_count], label=label)
-            total_x = np.append(total_x, df["st"].values)
-            total_y = np.append(total_y, df["tm"].values)
+            acc_per_cycle[df_count][0] = max(df["ac"])
+            acc_per_cycle[df_count][1] = max(df["ao"])
             df_count += 1
-        input_regression = [('polynomial', PolynomialFeatures(degree=2)), ('modal', LinearRegression())]
-        pipe = Pipeline(input_regression)
-        pipe.fit(total_x.reshape(-1, 1), total_y.reshape(-1, 1))
-        poly_pred = pipe.predict(total_x.reshape(-1, 1))
-        sorted_zip = sorted(zip(total_x, poly_pred))
-        x_poly, poly_pred = zip(*sorted_zip)
-        reg_label = ('RMSE %f' % np.sqrt(mean_squared_error(x_poly, poly_pred)))
-        plt.plot(x_poly, poly_pred, color='magenta', linestyle='--', label=reg_label)
-        plt.title("%s thrust over time" % (medusae[dfs_count]))
+        means = [np.mean(acc_per_cycle[:, 0]), np.mean(acc_per_cycle[:, 1])]
+        errors = [np.std(acc_per_cycle[:, 0]) / 2, np.std(acc_per_cycle[:, 1]) / 2]
+        labels = ['modeled', 'observed']
+        plt.xlabel('2 acceleration data')
+        plt.ylabel('max acceleration per cycle m*s^-2')
+        plt.title("%s max acceleration estimates by MODEL2 and the published model" % name[dfs_count])
+        plt.xticks(range(2), labels)
+        width = 0.15
+        plt.bar(np.arange(2), acc_per_cycle[0], width=width, label='cycle #1')
+        plt.bar(np.arange(2) + width, acc_per_cycle[1], width=width, label='cycle #2')
+        plt.bar(np.arange(2) + 2 * width, acc_per_cycle[2], width=width, label='cycle #3')
+        plt.bar(np.arange(2) + 3 * width, acc_per_cycle[3], width=width, label='cycle #4')
+        plt.bar(np.arange(2) + 4 * width, means, yerr=errors, width=width, label='average')
         plt.legend()
-        plt.xlabel("time s")
-        plt.ylabel("thrust g*m*s^-2")
-        plt.tight_layout()
         plt.show()
+
         dfs_count += 1
+    # dfs_count = 0
+    # for dfs in dfss:
+    #     total_x = np.array([])
+    #     total_y = np.array([])
+    #     colors = ['goldenrod', 'firebrick', 'forestgreen', 'dodgerblue']
+    #     df_count = 0
+    #     for df in dfs:
+    #         label = "cycle #" + str(df_count + 1)
+    #         plt.plot(df["st"], df["tf"], color=colors[df_count], label=label)
+    #         total_x = np.append(total_x, df["st"].values)
+    #         total_y = np.append(total_y, df["tf"].values)
+    #         df_count += 1
+    #     input_regression = [('polynomial', PolynomialFeatures(degree=2)), ('modal', LinearRegression())]
+    #     pipe = Pipeline(input_regression)
+    #     pipe.fit(total_x.reshape(-1, 1), total_y.reshape(-1, 1))
+    #     poly_pred = pipe.predict(total_x.reshape(-1, 1))
+    #     sorted_zip = sorted(zip(total_x, poly_pred))
+    #     x_poly, poly_pred = zip(*sorted_zip)
+    #     reg_label = ('RMSE %f' % np.sqrt(mean_squared_error(x_poly, poly_pred)))
+    #     plt.plot(x_poly, poly_pred, color='magenta', linestyle='--', label=reg_label)
+    #     plt.title("%s thrust over time" % (name[dfs_count]))
+    #     plt.legend()
+    #     plt.xlabel("time s")
+    #     plt.ylabel("thrust g*m*s^-2")
+    #     plt.tight_layout()
+    #     plt.show()
+    #     dfs_count += 1
 
-    dfs_count = 0
-    for dfs in dfss:
-        total_x = np.array([])
-        total_y = np.array([])
-        colors = ['goldenrod', 'firebrick', 'forestgreen', 'dodgerblue']
-        df_count = 0
-        for df in dfs:
-            label = "cycle #" + str(df_count + 1)
-            plt.plot(df["st"], df["ac"], color=colors[df_count], label=label)
-            total_x = np.append(total_x, df["st"].values)
-            total_y = np.append(total_y, df["ac"].values)
-            df_count += 1
-        input_regression = [('polynomial', PolynomialFeatures(degree=2)), ('modal', LinearRegression())]
-        pipe = Pipeline(input_regression)
-        pipe.fit(total_x.reshape(-1, 1), total_y.reshape(-1, 1))
-        poly_pred = pipe.predict(total_x.reshape(-1, 1))
-        sorted_zip = sorted(zip(total_x, poly_pred))
-        x_poly, poly_pred = zip(*sorted_zip)
-        reg_label = ('RMSE %f' % np.sqrt(mean_squared_error(x_poly, poly_pred)))
-        plt.plot(x_poly, poly_pred, color='magenta', linestyle='--', label=reg_label)
-        plt.title("%s acceleration over time" % (medusae[dfs_count]))
-        plt.legend()
-        plt.xlabel("time s")
-        plt.ylabel("acceleration ms^-2")
-        plt.tight_layout()
-        plt.show()
-        dfs_count += 1
-
-    total_x = np.array([])
-    total_y1 = np.array([])
-    total_y2 = np.array([])
-    count = 0
-    for df in dfs:
-        label = "cycle #" + str(count + 1)
-        plt.plot(df["st"], df["ac"], color='magenta', label=label)
-        plt.plot(df["st"], df["am"], color='purple', label=label)
-        total_x = np.append(total_x, df["st"].values)
-        total_y1 = np.append(total_y1, df["ac"].values)
-        total_y2 = np.append(total_y2, df["am"].values)
-        count += 1
-    input_regression = [('polynomial', PolynomialFeatures(degree=2)), ('modal', LinearRegression())]
-    pipe1 = Pipeline(input_regression)
-    pipe1.fit(total_x.reshape(-1, 1), total_y1.reshape(-1, 1))
-    poly_pred1 = pipe1.predict(total_x.reshape(-1, 1))
-    sorted_zip1 = sorted(zip(total_x, poly_pred1))
-    x_poly, poly_pred1 = zip(*sorted_zip1)
-    reg_label1 = ('RMSE %f' % np.sqrt(mean_squared_error(x_poly, poly_pred1)))
-    plt.plot(x_poly, poly_pred1, color='magenta', linestyle='--', label=reg_label1)
-    pipe2 = Pipeline(input_regression)
-    pipe2.fit(total_x.reshape(-1, 1), total_y2.reshape(-1, 1))
-    poly_pred2 = pipe2.predict(total_x.reshape(-1, 1))
-    sorted_zip2 = sorted(zip(total_x, poly_pred2))
-    x_poly, poly_pred2 = zip(*sorted_zip2)
-    reg_label2 = ('RMSE %f' % np.sqrt(mean_squared_error(x_poly, poly_pred1)))
-    plt.plot(x_poly, poly_pred2, color='purple', linestyle='--', label=reg_label2)
-    plt.title("p_gregarium acceleration over time")
-    plt.legend()
-    plt.xlabel("time s")
-    plt.ylabel("acceleration ms^-2")
-    plt.tight_layout()
-    plt.show()
-
-    dfs_count += 1
+    # dfs_count = 0
+    # for dfs in dfss:
+    #     total_x = np.array([])
+    #     total_y = np.array([])
+    #     colors = ['goldenrod', 'firebrick', 'forestgreen', 'dodgerblue']
+    #     df_count = 0
+    #     for df in dfs:
+    #         label = "cycle #" + str(df_count + 1)
+    #         plt.plot(df["st"], df["ac"], color=colors[df_count], label=label)
+    #         total_x = np.append(total_x, df["st"].values)
+    #         total_y = np.append(total_y, df["ac"].values)
+    #         df_count += 1
+    #     input_regression = [('polynomial', PolynomialFeatures(degree=2)), ('modal', LinearRegression())]
+    #     pipe = Pipeline(input_regression)
+    #     pipe.fit(total_x.reshape(-1, 1), total_y.reshape(-1, 1))
+    #     poly_pred = pipe.predict(total_x.reshape(-1, 1))
+    #     sorted_zip = sorted(zip(total_x, poly_pred))
+    #     x_poly, poly_pred = zip(*sorted_zip)
+    #     reg_label = ('RMSE %f' % np.sqrt(mean_squared_error(x_poly, poly_pred)))
+    #     plt.plot(x_poly, poly_pred, color='magenta', linestyle='--', label=reg_label)
+    #     plt.title("%s acceleration over time" % (oblate_name[dfs_count]))
+    #     plt.legend()
+    #     plt.xlabel("time s")
+    #     plt.ylabel("acceleration ms^-2")
+    #     plt.tight_layout()
+    #     plt.show()
+    #     dfs_count += 1
+    #
+    # total_x = np.array([])
+    # total_y1 = np.array([])
+    # total_y2 = np.array([])
+    # count = 0
+    # for df in dfs:
+    #     label = "cycle #" + str(count + 1)
+    #     plt.plot(df["st"], df["ac"], color='magenta', label=label)
+    #     plt.plot(df["st"], df["am"], color='purple', label=label)
+    #     total_x = np.append(total_x, df["st"].values)
+    #     total_y1 = np.append(total_y1, df["ac"].values)
+    #     total_y2 = np.append(total_y2, df["am"].values)
+    #     count += 1
+    # input_regression = [('polynomial', PolynomialFeatures(degree=2)), ('modal', LinearRegression())]
+    # pipe1 = Pipeline(input_regression)
+    # pipe1.fit(total_x.reshape(-1, 1), total_y1.reshape(-1, 1))
+    # poly_pred1 = pipe1.predict(total_x.reshape(-1, 1))
+    # sorted_zip1 = sorted(zip(total_x, poly_pred1))
+    # x_poly, poly_pred1 = zip(*sorted_zip1)
+    # reg_label1 = ('RMSE %f' % np.sqrt(mean_squared_error(x_poly, poly_pred1)))
+    # plt.plot(x_poly, poly_pred1, color='magenta', linestyle='--', label=reg_label1)
+    # pipe2 = Pipeline(input_regression)
+    # pipe2.fit(total_x.reshape(-1, 1), total_y2.reshape(-1, 1))
+    # poly_pred2 = pipe2.predict(total_x.reshape(-1, 1))
+    # sorted_zip2 = sorted(zip(total_x, poly_pred2))
+    # x_poly, poly_pred2 = zip(*sorted_zip2)
+    # reg_label2 = ('RMSE %f' % np.sqrt(mean_squared_error(x_poly, poly_pred1)))
+    # plt.plot(x_poly, poly_pred2, color='purple', linestyle='--', label=reg_label2)
+    # plt.title("p_gregarium acceleration over time")
+    # plt.legend()
+    # plt.xlabel("time s")
+    # plt.ylabel("acceleration ms^-2")
+    # plt.tight_layout()
+    # plt.show()
+    #
+    # dfs_count += 1
 
 
 ######################################################################
@@ -189,22 +202,6 @@ def split_sp(df_ref):
     ref_4 = df_ref[36:45].copy()
     ref_4['st'] = np.arange(0, df_ref.at[9, 'st']+0.05, df_ref.at[9, 'st'] / 8)
 
-    return [ref_1, ref_2, ref_3, ref_4]
-
-
-######################################################################
-# split p_gregarium dataframe into 4 based on volume
-# param: df
-######################################################################
-def split_gregarium(df_ref):
-    ref_1 = df_ref[2:5].copy()
-    ref_1['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 2)
-    ref_2 = df_ref[5:9].copy()
-    ref_2['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 3)
-    ref_3 = df_ref[9:13].copy()
-    ref_3['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 3)
-    ref_4 = df_ref[13:17].copy()
-    ref_4['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 3)
     return [ref_1, ref_2, ref_3, ref_4]
 
 
@@ -241,31 +238,32 @@ def split_cellularia(df_ref):
 
 
 ######################################################################
+# split p_gregarium dataframe into 4 based on volume
+# param: df
+######################################################################
+def split_gregarium(df_ref):
+    ref_1 = df_ref[2:5].copy()
+    ref_1['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 2)
+    ref_2 = df_ref[5:9].copy()
+    ref_2['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 3)
+    ref_3 = df_ref[9:13].copy()
+    ref_3['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 3)
+    ref_4 = df_ref[13:17].copy()
+    ref_4['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 3)
+    return [ref_1, ref_2, ref_3, ref_4]
+
+
+######################################################################
 # run my implementation of their model
 # param: dfs, constant orifice, and species names
 ######################################################################
 def improved_model(df_ref, name_ref):
-    count = 0
     for (df, name) in zip(df_ref, name_ref):
         clean_time(df)
-        basics(df)
+        get_basics(df)
         get_accel(df)
         df.drop(df.tail(1).index, inplace=True)
-        plt.plot(df["st"], df["ac"], label='modeled acceleration')
-        print("count" + str(df))
-        if name == 's_sp' or name == 'p_gregarium':
-            plt.plot(df["st"], df["am"], label='published acceleration')
-            plt.plot(df["st"], df["ao"], label='observed acceleration')
-        else:
-            plt.plot(df["st"], df["a"], label='observed acceleration')
-        plt.title("modeled %s acceleration over 4 cycles" % name)
-        plt.legend()
-        plt.xlabel("time s")
-        plt.ylabel("acceleration m/s^2")
-        plt.tight_layout()
-        plt.show()
 
-        count += 1
 
 ######################################################################
 # clean up data frame to show only 1 corrected time reference
@@ -308,21 +306,7 @@ def clean_time(df_ref):
 # in the corrected units. these complete the basic measurements
 # param: list of medusae dataframes
 ######################################################################
-def basics(df_ref):
-    # f_col = ''
-    # vel_col = ''
-    # re_col = ''
-    #
-    # for column in df.columns:
-    #     if re.search(r'f', column):
-    #         f_col = re.search(r'f', column).string
-    #         # print(f_col)
-    #     if re.search(r'v', column):
-    #         vel_col = re.search(r'v', column).string
-    #         # print(vel_col)
-    #     if re.search(r're', column):
-    #         re_col = re.search(r're', column).string
-    #         # print(re_col)
+def get_basics(df_ref):
     accelerations_o = []  # store instantaneous accelerations in converted units
     accelerations_m = []  # store instantaneous accelerations in converted units
     velocities = []  # store instantaneous velocities in converted units
@@ -335,11 +319,6 @@ def basics(df_ref):
             has_am = True
 
     for row in df_ref.index:
-        # aoc = df_ref.at[row, 'a'] / 100.0
-        # aoc_col = df_ref.columns.get_loc('a')
-        # aoc = df_ref.iat[aoc_col, row] / 100.0
-        #
-        # accelerations_o.append(aoc)
         if has_am:
             aoc = df_ref.at[row, 'ao'] / 100.0
             accelerations_o.append(aoc)
@@ -350,16 +329,16 @@ def basics(df_ref):
             accelerations_o.append(aoc)
         u = df_ref.at[row, 'v'] / 100.0  # convert velocity unit to m/s
         velocities.append(u)
-        d_h = dim(df_ref.at[row, 're'], u, df_ref.at[row, 'f'])  # re: m^2/s / m^2/s, fineness: m/m
+        d_h = bell_dim(df_ref.at[row, 're'], u, df_ref.at[row, 'f'])  # re: m^2/s / m^2/s, fineness: m/m
         diameters.append(d_h[0])
         heights.append(d_h[1])
-
 
     if has_am:
         df_ref["ao"] = accelerations_o
         df_ref["am"] = accelerations_m
     else:
-        df_ref["a"] = accelerations_o
+        # df_ref.rename(columns={"a": "ao"})  # WHY DOENS'T THIS WORK
+        df_ref["ao"] = accelerations_o
     df_ref["v"] = velocities
     df_ref["h"] = heights
     df_ref["d"] = diameters
@@ -371,63 +350,13 @@ def basics(df_ref):
 ######################################################################
 def get_accel(df_ref):
 
-    # volumes = []  # store instantaneous volumes
-    # masses = []  # store instantaneous masses
-    # drags = []  # store instantaneous drags
-    # dSdt = []  # store instantaneous change in subumbrellar volume over change of time
-    # thrusts = []  # store instantaneous thrust force
-    # net_forces = []  # store instantaneous total force
-    # accelerations = []  # store instantaneous acceleration
-    #
-    # for row in df_ref.index:
-    #     h = df_ref.at[row, 'h']
-    #     d = df_ref.at[row, 'd']
-    #     r = df_ref.at[row, 're']
-    #     u = df_ref.at[row, 'v']
-    #     volumes.append(vol(h, d))
-    #     masses.append(mas(h, d))
-    #     drags.append(drg(r, h, d, u))
-    #
-    # df_ref["V"] = volumes
-    # df_ref["ori"] = ori_ref
-    #
-    # for row in list(range(len(df_ref.index) - 1)):
-    #     v1 = df_ref.at[row, 'V']
-    #     v2 = df_ref.at[row + 1, 'V']
-    #     t1 = df_ref.at[row, 'st']
-    #     t2 = df_ref.at[row + 1, 'st']
-    #     o = df_ref.at[row, 'ori']
-    #     dSdt.append(dS(v2 - v1) / (t2 - t1))
-    #     thrusts.append(thr_p(o, v1, v2, t1, t2))
-    #
-    # dSdt.append(0)
-    # thrusts.append(0)
-    #
-    # df_ref["drg"] = drags
-    # df_ref["dSdt"] = dSdt
-    # df_ref["tm"] = thrusts
-    #
-    # for row in df_ref.index:
-    #     thr = df_ref.at[row, 'tm']
-    #     drag = df_ref.at[row, 'drg']
-    #     net_forces.append(nfr(thr, drag))
-    #
-    # df_ref["m"] = masses
-    # df_ref["nfm"] = net_forces
-    #
-    # for row in df_ref.index:
-    #     m = df_ref.at[row, 'm']
-    #     f = df_ref.at[row, 'nfm']
-    #     accelerations.append(f / m)
-    #
-    # df_ref["ac"] = accelerations
-    volumes = []  # store instantaneous volumes
-    masses = []  # store instantaneous masses
+    volumes = []
+    masses = []
     orifices = []
-    drags = []  # store instantaneous drags
-    thrusts = []  # store instantaneous thrust force
-    net_forces = []  # store instantaneous total force
-    accelerations = []  # store instantaneous acceleration
+    drags = []
+    thrusts = []
+    net_forces = []
+    accelerations = []
     dSdt = []
 
     for row in df_ref.index:
@@ -436,8 +365,8 @@ def get_accel(df_ref):
         r = df_ref.at[row, 're']
         u = df_ref.at[row, 'v']
         orifices.append(ori(d))
-        volumes.append(vol(h, d))
-        masses.append(mas(h, d))
+        volumes.append(bell_vol(h, d))
+        masses.append(bell_mas(h, d))
         drags.append(drg(r, h, d, u))
 
     df_ref["V"] = volumes
@@ -451,27 +380,26 @@ def get_accel(df_ref):
         t2 = df_ref.at[row+1, 'st']
         dsdt = dS(vol2-vol1)/(t2 - t1)
         dSdt.append(dsdt)
-        thrusts.append(3*(sea_den / o * np.power(dsdt, 2)))
+        thrusts.append(sea_den / o * np.power(dsdt, 2))
 
     dSdt.append(0)
     thrusts.append(0)
 
     df_ref["dSdt"] = dSdt
     df_ref["drg"] = drags
-    df_ref["tm"] = thrusts
+    df_ref["tf"] = thrusts
 
     for row in df_ref.index:
-        thr = df_ref.at[row, 'tm']
+        thr = df_ref.at[row, 'tf']
         drag = df_ref.at[row, 'drg']
         net_forces.append(nfr(thr, drag))
 
-
     df_ref["m"] = masses
-    df_ref["nfm"] = net_forces
+    df_ref["nf"] = net_forces
 
     for row in df_ref.index:
         m = df_ref.at[row, 'm']
-        f = df_ref.at[row, 'nfm']
+        f = df_ref.at[row, 'nf']
         accelerations.append(f / m)
 
     df_ref["ac"] = accelerations
@@ -481,7 +409,7 @@ def get_accel(df_ref):
 # get bell diameter (m) and height (m)
 # param: Re, velocity(m/s), fineness
 ######################################################################
-def dim(re_ref, u_ref, f_ref):
+def bell_dim(re_ref, u_ref, f_ref):
     # bell diameter = Re * sea kinematic viscosity / swimming velocity
     # diameter: m = (m^2/s / m^2/s) (m^2/s) / m/s
     d_b = 1.0 * re_ref * sea_vis / np.absolute(u_ref)
@@ -495,7 +423,7 @@ def dim(re_ref, u_ref, f_ref):
 # get bell volume (m^3)
 # param: bell height(m), bell diameter(m)
 ######################################################################
-def vol(h_ref, d_ref):
+def bell_vol(h_ref, d_ref):
     # bell radius = bell diameter / 2
     # radius: m
     radius = d_ref / 2
@@ -509,8 +437,8 @@ def vol(h_ref, d_ref):
 # get effective mass (g)
 # param: bell height(m), bell diameter(m)
 ######################################################################
-def mas(h_ref, d_ref):
-    volume = vol(h_ref, d_ref)
+def bell_mas(h_ref, d_ref):
+    volume = bell_vol(h_ref, d_ref)
     # mass coefficient = bell diameter / 2 * bell height^(1.4)
     # coefficient = m/m
     coe = np.power(d_ref / 2 / h_ref, 1.4)
@@ -568,8 +496,8 @@ def ori(d_ref):
 # get net force (g * m / s^2)
 # param: bell height(m), bell diameter(m), modeled acceleration(m/s^2)
 ######################################################################
-def nfr_m(h_ref, d_ref, am_ref):
-    mass = mas(h_ref, d_ref)
+def nf_am(h_ref, d_ref, am_ref):
+    mass = bell_mas(h_ref, d_ref)
     # force = mass * acceleration
     # force: g * m / s^2 = g * (m / s^2)
     net_force = mass * am_ref
@@ -581,8 +509,8 @@ def nfr_m(h_ref, d_ref, am_ref):
 # param: bell height(m), bell diameter(m), acceleration(m/s^2),
 #        Re, swimming velocity (m/s)
 ######################################################################
-def thr_m(h_ref, d_ref, am_ref, re_ref, u_ref):
-    force = nfr_m(h_ref, d_ref, am_ref)
+def tf_am(h_ref, d_ref, am_ref, re_ref, u_ref):
+    force = nf_am(h_ref, d_ref, am_ref)
     drag = drg(re_ref, h_ref, d_ref, u_ref)
     thrust = force + drag
     if thrust < 0:
@@ -628,9 +556,9 @@ def nfr(thr_ref, drg_ref):
 ######################################################################
 # estimate change of oblate subumbrellar volume
 ######################################################################
-def dS(dV):
+def dS(dV_ref):
     # formula acquired from Sub_volume.py
-    ds = 1.263 * dV + 7.357e-09
+    ds = 3*(0.345 * dV_ref - 1.34e-07)
     return ds
 
 

@@ -13,8 +13,13 @@ sea_vis = np.power(10.0, -6)  # m^2/s
 
 
 ######################################################################
-# task 1: build a model that estimates the change of subumbrellar
-# volume based on change of bell volume
+# TASK 2:
+# to make adjustments to MODEL1 and validate the proposed improvement,
+# an extra parameter is required and yet it is not accessible.
+# the change in the bell's subumbrellar volume per pulsation is crucial
+# for building MODEL2. an auxillary model is constructed to make sound
+# estimates of that parameter based the change of bell volume per pulsation
+# RESULT:
 ######################################################################
 def main():
 
@@ -31,28 +36,11 @@ def main():
     # group the two constant orifice areas for easy access
     oris = [s_sp_ori, p_gregarium_ori]
 
-    # clean up dataframes
-    # a_digitale.dropna(axis=0, how='any', inplace=True)  # drop incomplete rows for the prolate medusae
-    # m_cellularia.dropna(axis=0, how='any', inplace=True)  # drop incomplete rows for the oblate medusae
-
-    # for column in dfs_2001[0].columns:  # shift velocity columns to line up data for prolate medusae
-    #     index_no = dfs_2001[0].columns.get_loc(column)
-    #     if index_no == 5 or index_no == 6:
-    #         dfs_2001[0][column] = dfs_2001[0][column].shift(-1)
-    count = 0
     for (df, o) in zip(dfs, oris):
         clean_time(df)
         get_basics(df)
         get_thrust(df)
         sub_n_vol_change(df, o)
-
-        # plt.title("modeled %s thrust over 4 cycles by published model" % name[count])
-        # plt.plot(df["st"], df["tf"])
-        # plt.xlabel("time s")
-        # plt.ylabel("thrust g*m*s^-2")
-        # plt.tight_layout()
-        # plt.show()
-        # count +=1
 
     dfss = [split_sp(dfs[0]), split_gregarium(dfs[1])]
 
@@ -79,32 +67,6 @@ def main():
         plt.tight_layout()
         plt.show()
         dfs_count += 1
-
-    # colors = ['goldenrod', 'firebrick', 'forestgreen', 'dodgerblue']
-    # dfs_count = 0
-    # for dfs in dfss:
-    #     total_x = np.array([])
-    #     total_y = np.array([])
-    #
-    #     df_count = 0
-    #     for df in dfs:
-    #         label = "cycle #" + str(df_count + 1)
-    #         plt.plot(df["st"], df["tm"], color=colors[df_count], label=label)
-    #         # total_x = np.append(total_x, df["st"].values)
-    #         # total_y = np.append(total_y, df["tm"].values)
-    #         df_count += 1
-    #     # polymodel3 = np.poly1d(np.polyfit(total_x, total_y, 7))
-    #     # polyline3 = np.linspace(min(total_x), max(total_x), 100)
-    #     # plt.scatter(total_x, total_y)
-    #     # plt.plot(polyline3, polymodel3(polyline3), label='thrust regression')
-    #     plt.title("modeled thrust of %s over time" % (name[dfs_count]))
-    #     plt.legend()
-    #     plt.xlabel("time s")
-    #     plt.ylabel("thrust g * m *s^-2")
-    #     plt.tight_layout()
-    #     plt.show()
-    #
-    #     dfs_count += 1
 
 
 ######################################################################
@@ -179,25 +141,11 @@ def clean_time(df_ref):
 # accelerations in the corrected units
 ######################################################################
 def get_basics(df_ref):
-    # f_col = ''
-    # vel_col = ''
-    # re_col = ''
-    #
-    # for column in df.columns:
-    #     if re.search(r'f', column):
-    #         f_col = re.search(r'f', column).string
-    #         # print(f_col)
-    #     if re.search(r'v', column):
-    #         vel_col = re.search(r'v', column).string
-    #         # print(vel_col)
-    #     if re.search(r're', column):
-    #         re_col = re.search(r're', column).string
-    #         # print(re_col)
-    accelerations_o = []  # store instantaneous accelerations in converted units
-    accelerations_m = []  # store instantaneous accelerations in converted units
-    velocities = []  # store instantaneous velocities in converted units
-    heights = []  # store instantaneous heights
-    diameters = []  # store instantaneous diameters
+    accelerations_o = []
+    accelerations_m = []
+    velocities = []
+    heights = []
+    diameters = []
 
     for row in df_ref.index:
         aoc = df_ref.at[row, 'ao'] / 100.0
@@ -222,11 +170,11 @@ def get_basics(df_ref):
 # derived by the basic measurements
 ######################################################################
 def get_thrust(df_ref):
-    volumes = []  # store instantaneous volumes
-    masses = []  # store instantaneous masses
-    drags = []  # store instantaneous drags
-    net_forces = []  # store instantaneous net_forces
-    thrusts = []  # store instantaneous thrusts
+    volumes = []
+    masses = []
+    drags = []
+    net_forces = []
+    thrusts = []
 
     for row in df_ref.index:
         am = df_ref.at[row, 'am']
@@ -241,9 +189,6 @@ def get_thrust(df_ref):
         thrusts.append(tf_am(h, d, am, r, v))
 
     df_ref["V"] = volumes
-    # df_ref["m"] = masses
-    # df_ref["nfm"] = net_forces
-    # df_ref["drg"] = drags
     df_ref["tf"] = thrusts
 
 
@@ -253,11 +198,11 @@ def get_thrust(df_ref):
 ######################################################################
 def sub_n_vol_change(df_ref, ori_ref):
     thrust = ""
-    dSdt = []  # store instantaneous dSdt
-    dVdt = []  # store instantaneous dVdt
-    dSdV = []  # store instantaneous dSdV
     dV = []  # store instantaneous dV
     dS = []  # store instantaneous dS
+    # dSdt = []  # store instantaneous dSdt
+    # dVdt = []  # store instantaneous dVdt
+    # dSdV = []  # store instantaneous dSdV
 
     for column in df_ref.columns:
         if re.search(r'tf', column):
@@ -267,21 +212,21 @@ def sub_n_vol_change(df_ref, ori_ref):
         v1 = df_ref.at[row, 'V']
         v2 = df_ref.at[row + 1, 'V']
         dV.append(v2 - v1)
-        dVdt.append((v2 - v1) / t)
+        # dVdt.append((v2 - v1) / t)
         f = df_ref.at[row, thrust]
-        if v1 > v2:
-            dSdt.append(-1 * np.sqrt(ori_ref / sea_den * f))
-        else:
-            dSdt.append(np.sqrt(ori_ref / sea_den * f))
+        # if v1 > v2:
+        #     dSdt.append(-1 * np.sqrt(ori_ref / sea_den * f))
+        # else:
+        #     dSdt.append(np.sqrt(ori_ref / sea_den * f))
         SV = dsdv(f, ori_ref, v1, v2, t)
-        dSdV.append(SV)
+        # dSdV.append(SV)
         dS.append(SV * (v2 - v1))
 
     dV.append(0)
     dS.append(0)
-    dVdt.append(0)
-    dSdt.append(0)
-    dSdV.append(0)
+    # dVdt.append(0)
+    # dSdt.append(0)
+    # dSdV.append(0)
 
     df_ref["dV"] = dV
     df_ref["dS"] = dS

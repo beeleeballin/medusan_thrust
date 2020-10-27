@@ -16,11 +16,21 @@ p_gregarium_f = f_path + "p_gregarium_data.csv"
 sea_den = 1.024 * np.power(10.0, 6)  # g/m^3, 1.024 g/cm^3 (Colin & Costello, 2001)
 sea_vis = np.power(10.0, -6)  # m^2/s
 
-
+######################################################################
+# TASK 1:
+# to validate the model implementation. the description of the analysis
+# in the published article (Colin & Costello, 2001) is followed religiously,
+# and results are compared to the published data to prove the model
+# works as intended. the program below runs MODEL1.
+# RESULT:
+# MODEL1 provides outputs significantly similar to the published
+# results, therefore MODEL1 is deemed successfully programmed. however,
+# while MODEL1 makes accurate estimates of prolate medusae acceleration
+# (and thrust) as intended, the estimates on oblate medusae acceleration
+# remain incorrect. a new model is needed.
+######################################################################
 def main():
-    ######################################################################
-    # task 2: validate the model via implementation
-    ######################################################################
+
     # import pre-cleaned up csv files, 1 prolate 1 oblates
     s_sp = pd.read_csv(s_sp_f)
     p_gregarium = pd.read_csv(p_gregarium_f)
@@ -39,28 +49,6 @@ def main():
     dfss = [split_sp(dfs[0]), split_gregarium(dfs[1])]
 
     colors = ['goldenrod', 'firebrick', 'forestgreen', 'dodgerblue']
-    dfs_count = 0
-    for dfs in dfss:
-        total_x = np.array([])
-        total_y = np.array([])
-        df_count = 0
-        for df in dfs:
-            label = "cycle #" + str(df_count + 1)
-            plt.plot(df["st"], df["V"], color=colors[df_count], label=label)
-            total_x = np.append(total_x, df["st"].values)
-            total_y = np.append(total_y, df["V"].values)
-            df_count += 1
-        polymodel1 = np.poly1d(np.polyfit(total_x, total_y, 2))
-        polyline1 = np.linspace(min(total_x), max(total_x), 100)
-        plt.plot(polyline1, polymodel1(polyline1), color='magenta', linestyle='--', label='p(2) regression')
-        plt.title("modeled %s bell volume per cycle" % (name[dfs_count]))
-        plt.legend()
-        plt.xlabel("time s")
-        plt.ylabel("volume m^3")
-        plt.tight_layout()
-        plt.show()
-
-        dfs_count += 1
 
     dfs_count = 0
     for dfs in dfss:
@@ -71,9 +59,9 @@ def main():
             plt.plot(df["st"], df["ac"], color='forestgreen', label=("modeled" + label))
             plt.plot(df["st"], df["ao"], color='goldenrod', label=("observed" + label))
             df_count += 1
-        plt.title("modeled %s per cycle acceleration by published model matches published data" % (name[dfs_count]))
+        plt.title("MODEL1 acceleration estimates match published %s modeled acceleration data" % name[dfs_count])
         plt.legend()
-        plt.xlabel("time s")
+        plt.xlabel("cycle percentage %")
         plt.ylabel("acceleration m * s^-2")
         plt.tight_layout()
         plt.show()
@@ -127,10 +115,10 @@ def main():
             df_count += 1
         means = [np.mean(acc_per_cycle[:, 0]), np.mean(acc_per_cycle[:, 1]), np.mean(acc_per_cycle[:, 2])]
         errors = [np.std(acc_per_cycle[:, 0])/2, np.std(acc_per_cycle[:, 1])/2, np.std(acc_per_cycle[:, 2])/2]
-        labels = ['published', 'corrected', 'observed']
-        plt.xlabel('3 acceleration outputs')
-        plt.ylabel('max acceleration in every cycle m*s^-2')
-        plt.title('%s maximum acceleration per cycle by improved model' % name[dfs_count])
+        labels = ['published', 'modeled', 'observed']
+        plt.xlabel('3 acceleration data')
+        plt.ylabel('max acceleration per cycle m*s^-2')
+        plt.title("MODEL1 max acceleration estimates match published %s modeled acceleration data" % name[dfs_count])
         plt.xticks(range(3), labels)
         width = 0.15
         plt.bar(np.arange(3), acc_per_cycle[0], width=width, label='cycle #1')
@@ -143,11 +131,6 @@ def main():
 
         dfs_count += 1
 
-
-    ######################################################################
-    # task 3: validate our improved model by tweaking the tested
-    # implementation of the published model
-    ######################################################################
     # reimport a pre-cleaned up p.gregarium csv as df
     p_gregarium = pd.read_csv(p_gregarium_f)
     # run it through our modified model
@@ -161,9 +144,9 @@ def main():
         plt.plot(df["st"], df["am"], color='firebrick', linestyle='--', label=("published"+label))
         plt.plot(df["st"], df["ac"], color='forestgreen', linestyle='--', label=("corrected"+label))
         df_count += 1
-    plt.title("modeled p_gregarium acceleration per cycle by improved model")
+    plt.title("p_gregarium acceleration estimates by MODEL1 with minor tweaks")
     plt.legend()
-    plt.xlabel("time s")
+    plt.xlabel("cycle percentage %")
     plt.ylabel("acceleration m * s^-2")
     plt.tight_layout()
     plt.show()
@@ -215,10 +198,10 @@ def main():
         df_count += 1
     means = [np.mean(acc_per_cycle[:, 0]), np.mean(acc_per_cycle[:, 1]), np.mean(acc_per_cycle[:, 2])]
     errors = [np.std(acc_per_cycle[:, 0]) / 2, np.std(acc_per_cycle[:, 1]) / 2, np.std(acc_per_cycle[:, 2]) / 2]
-    labels = ['published', 'corrected', 'observed']
-    plt.xlabel('3 acceleration outputs')
-    plt.ylabel('max acceleration in every cycle m*s^-2')
-    plt.title('p_gregarium maximum acceleration per cycle by improved model')
+    labels = ['published', 'improved', 'observed']
+    plt.xlabel('3 acceleration data')
+    plt.ylabel('max acceleration per cycle m * s^-2')
+    plt.title("p_gregarium max acceleration estimates by MODEL1 with minor tweaks")
     plt.xticks(range(3), labels)
     width = 0.15
     plt.bar(np.arange(3), acc_per_cycle[0], width=width, label='cycle #1')
@@ -248,7 +231,7 @@ def copy_model(dfs_ref, oris_ref, name_ref):
         plt.plot(df["st"], df["ac"], label='modeled acceleration')
         plt.plot(df["st"], df["am"], label='published acceleration')
         plt.plot(df["st"], df["ao"], label='observed acceleration')
-        plt.title("modeled %s acceleration over 4 cycles by published model matches published data" % name_ref[count])
+        plt.title("MODEL1 acceleration estimates match published %s modeled acceleration data" % name_ref[count])
         plt.legend()
         plt.xlabel("time s")
         plt.ylabel("acceleration m/s^2")
@@ -272,7 +255,7 @@ def improved_model(df_ref):
     plt.plot(df_ref["st"], df_ref["ac"], label='modeled acceleration')
     plt.plot(df_ref["st"], df_ref["am"], label='published acceleration')
     plt.plot(df_ref["st"], df_ref["ao"], label='observed acceleration')
-    plt.title("modeled p_gregarium acceleration over 4 cycles by improved model is closes gap with observed model")
+    plt.title("p_gregarium acceleration estimates by MODEL1 with minor tweaks")
     plt.legend()
     plt.xlabel("time s")
     plt.ylabel("acceleration m/s^2")
