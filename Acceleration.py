@@ -35,87 +35,15 @@ def main():
     p_gregarium = pd.read_csv(p_gregarium_f)
     # group the medusa of interest for easy access
     dfs = [a_digitale, s_sp, p_flavicirrata, a_victoria, m_cellularia, p_gregarium]
+    name = ["a_digitale", "s_sp", "p_flavicirrata", "a_victoria", "m_cellularia", "p_gregarium"]
 
-    # we ignore the am column calculated
-    # p_gregarium.drop('am', axis='columns', inplace=True)
+    # oris= [(ori(0.83 / 100)), (ori(0.85 / 100)), (ori(0.56 / 100)),
+    #              (ori(5 / 100)), (ori(6.5 / 100)), (ori(2.14 / 100))]
 
-    # eliminate extra time columns
-    clean_time(dfs)
+    improved_model(dfs, name)
 
-    # give p.flavicirrata observed acceleration time the exception for now
-    p_flavicirrata.drop("t.1", axis=1, inplace=True)
+    dfss = [split_victoria(dfs[3]), split_cellularia(dfs[4]), split_gregarium(dfs[5])]
 
-    # add bell heights and diameters and correct velocity and acceleration units
-    add_basics(dfs)
-
-    # model acceleration for each species using an implementation of their model
-    find_accel(dfs)
-
-    # the last row of dSdt are zeroed because it requires the change in time
-    # and because it would effect the output we ignore that last row entirely
-    for df in dfs:
-        df.drop(df.tail(1).index, inplace=True)
-
-    # our implementation on the described acceleration for s.sp has a positive shift
-    plt.plot(s_sp["st"], s_sp["ac"], label='modeled acceleration')
-    plt.plot(s_sp["st"], s_sp["am"], label='published acceleration')
-    plt.plot(s_sp["st"], s_sp["ao"], label='observed acceleration')
-    plt.title("s.sp acceleration over time")
-    plt.legend()
-    plt.xlabel("time s")
-    plt.ylabel("acceleration m/s^2")
-    plt.tight_layout()
-    plt.show()
-
-    # our implementation on the described acceleration model for p.gregarium lower amplitudes
-    plt.plot(p_gregarium["st"], p_gregarium["ac"], label='modeled acceleration')
-    plt.plot(p_gregarium["st"], p_gregarium["am"], label='published acceleration')
-    plt.plot(p_gregarium["st"], p_gregarium["ao"], label='observed acceleration')
-    plt.title("p.gregarium acceleration over time")
-    plt.legend()
-    plt.xlabel("time s")
-    plt.ylabel("acceleration m/s^2")
-    plt.tight_layout()
-    plt.show()
-
-    # plt.plot(p_gregarium["st"], p_gregarium["vol"], label='volume')
-    # plt.title("p gregarium bell volume over time")
-    # plt.legend()
-    # plt.xlabel("time s")
-    # plt.ylabel("volume m^3")
-    # plt.tight_layout()
-    # plt.show()
-
-    # split and manually align pulsation data for each oblate medusae
-    a_victoria_1 = a_victoria[1:11].copy()
-    a_victoria_2 = a_victoria[10:18].copy()
-    a_victoria_2["st"] = a_victoria_2["st"] - (a_victoria["st"][10] - a_victoria["st"][3])
-    a_victoria_3 = a_victoria[18:25].copy()
-    a_victoria_3["st"] = a_victoria_3["st"] - (a_victoria["st"][18] - a_victoria["st"][3])
-    a_victoria_4 = a_victoria[25:32].copy()
-    a_victoria_4["st"] = a_victoria_4["st"] - (a_victoria["st"][25] - (a_victoria["st"][3] + a_victoria["st"][4])/2)
-    a_victorias = [a_victoria_1, a_victoria_2, a_victoria_3, a_victoria_4]
-
-    m_cellularia_1 = m_cellularia[4:17].copy()
-    m_cellularia_1["st"] = m_cellularia_1["st"] + m_cellularia["st"][0]/2
-    m_cellularia_2 = m_cellularia[16:29].copy()
-    m_cellularia_2["st"] = m_cellularia_2["st"] - (m_cellularia["st"][16] - m_cellularia["st"][5])
-    m_cellularia_3 = m_cellularia[28:40].copy()
-    m_cellularia_3["st"] = m_cellularia_3["st"] - (m_cellularia["st"][28] - m_cellularia["st"][6])
-    m_cellularia_4 = m_cellularia[39:55].copy()
-    m_cellularia_4["st"] = m_cellularia_4["st"] - (m_cellularia["st"][39] - m_cellularia["st"][4])
-    m_cellularias = [m_cellularia_1, m_cellularia_2, m_cellularia_3, m_cellularia_4]
-
-    p_gregarium_1 = p_gregarium[1:6].copy()
-    p_gregarium_1["st"] = p_gregarium_1["st"] + (p_gregarium["st"][0] / 2)
-    p_gregarium_2 = p_gregarium[5:9].copy()
-    p_gregarium_2["st"] = p_gregarium_2["st"] - (p_gregarium["st"][5] - (p_gregarium["st"][1] + p_gregarium["st"][2]) / 2)
-    p_gregarium_3 = p_gregarium[9:13].copy()
-    p_gregarium_3["st"] = p_gregarium_3["st"] - (p_gregarium["st"][9] - p_gregarium["st"][2])
-    p_gregarium_4 = p_gregarium[13:17].copy()
-    p_gregarium_4["st"] = p_gregarium_4["st"] - (p_gregarium["st"][13] - p_gregarium["st"][2])
-    p_gregariums = [p_gregarium_1, p_gregarium_2, p_gregarium_3, p_gregarium_4]
-    dfss = [a_victorias, m_cellularias, p_gregariums]
 
     medusae = ['a.victoria', 'm.cellularia', 'p.gregarium']
     dfs_count = 0
@@ -126,9 +54,9 @@ def main():
         df_count = 0
         for df in dfs:
             label = "cycle #" + str(df_count + 1)
-            plt.plot(df["st"], df["vol"], color=colors[df_count], label=label)
+            plt.plot(df["st"], df["V"], color=colors[df_count], label=label)
             total_x = np.append(total_x, df["st"].values)
-            total_y = np.append(total_y, df["vol"].values)
+            total_y = np.append(total_y, df["V"].values)
             df_count += 1
         input_regression = [('polynomial', PolynomialFeatures(degree=2)), ('modal', LinearRegression())]
         pipe = Pipeline(input_regression)
@@ -162,9 +90,9 @@ def main():
         df_count = 0
         for df in dfs:
             label = "cycle #" + str(df_count + 1)
-            plt.plot(df["st"], df["thrust"], color=colors[df_count], label=label)
+            plt.plot(df["st"], df["tm"], color=colors[df_count], label=label)
             total_x = np.append(total_x, df["st"].values)
-            total_y = np.append(total_y, df["thrust"].values)
+            total_y = np.append(total_y, df["tm"].values)
             df_count += 1
         input_regression = [('polynomial', PolynomialFeatures(degree=2)), ('modal', LinearRegression())]
         pipe = Pipeline(input_regression)
@@ -248,34 +176,131 @@ def main():
 
 
 ######################################################################
+# split s_sp dataframe into 4 based on volume
+# param: df
+######################################################################
+def split_sp(df_ref):
+    ref_1 = df_ref[3:13].copy()
+    ref_1['st'] = np.arange(0, df_ref.at[9, 'st']+0.05, df_ref.at[9, 'st'] / 9)
+    ref_2 = df_ref[13:26].copy()
+    ref_2['st'] = np.arange(0, df_ref.at[9, 'st']+0.05, df_ref.at[9, 'st'] / 12)
+    ref_3 = df_ref[26:36].copy()
+    ref_3['st'] = np.arange(0, df_ref.at[9, 'st']+0.05, df_ref.at[9, 'st'] / 9)
+    ref_4 = df_ref[36:45].copy()
+    ref_4['st'] = np.arange(0, df_ref.at[9, 'st']+0.05, df_ref.at[9, 'st'] / 8)
+
+    return [ref_1, ref_2, ref_3, ref_4]
+
+
+######################################################################
+# split p_gregarium dataframe into 4 based on volume
+# param: df
+######################################################################
+def split_gregarium(df_ref):
+    ref_1 = df_ref[2:5].copy()
+    ref_1['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 2)
+    ref_2 = df_ref[5:9].copy()
+    ref_2['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 3)
+    ref_3 = df_ref[9:13].copy()
+    ref_3['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 3)
+    ref_4 = df_ref[13:17].copy()
+    ref_4['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 3)
+    return [ref_1, ref_2, ref_3, ref_4]
+
+
+######################################################################
+# split m_cellularia dataframe into 4 based on volume
+# param: df
+######################################################################
+def split_victoria(df_ref):
+    ref_1 = df_ref[2:11].copy()
+    ref_1['st'] = np.arange(0, df_ref.at[7, 'st'] + 0.05, df_ref.at[7, 'st'] / 8)
+    ref_2 = df_ref[11:18].copy()
+    ref_2['st'] = np.arange(0, df_ref.at[7, 'st'] + 0.05, df_ref.at[7, 'st'] / 6)
+    ref_3 = df_ref[18:26].copy()
+    ref_3['st'] = np.arange(0, df_ref.at[7, 'st'] + 0.05, df_ref.at[7, 'st'] / 7)
+    ref_4 = df_ref[26:32].copy()
+    ref_4['st'] = np.arange(0, df_ref.at[7, 'st'] + 0.05, df_ref.at[7, 'st'] / 5)
+    return [ref_1, ref_2, ref_3, ref_4]
+
+
+######################################################################
+# split m_cellularia dataframe into 4 based on volume
+# param: df
+######################################################################
+def split_cellularia(df_ref):
+    ref_1 = df_ref[4:15].copy()
+    ref_1['st'] = np.arange(0, df_ref.at[11, 'st'] + 0.05, df_ref.at[11, 'st'] / 10)
+    ref_2 = df_ref[15:27].copy()
+    ref_2['st'] = np.arange(0, df_ref.at[11, 'st'] + 0.05, df_ref.at[11, 'st'] / 11)
+    ref_3 = df_ref[27:41].copy()
+    ref_3['st'] = np.arange(0, df_ref.at[11, 'st'] + 0.05, df_ref.at[11, 'st'] / 13)
+    ref_4 = df_ref[41:54].copy()
+    ref_4['st'] = np.arange(0, df_ref.at[11, 'st'] + 0.05, df_ref.at[11, 'st'] / 12)
+    return [ref_1, ref_2, ref_3, ref_4]
+
+
+######################################################################
+# run my implementation of their model
+# param: dfs, constant orifice, and species names
+######################################################################
+def improved_model(df_ref, name_ref):
+    count = 0
+    for (df, name) in zip(df_ref, name_ref):
+        clean_time(df)
+        basics(df)
+        get_accel(df)
+        df.drop(df.tail(1).index, inplace=True)
+        plt.plot(df["st"], df["ac"], label='modeled acceleration')
+        print("count" + str(df))
+        if name == 's_sp' or name == 'p_gregarium':
+            plt.plot(df["st"], df["am"], label='published acceleration')
+            plt.plot(df["st"], df["ao"], label='observed acceleration')
+        else:
+            plt.plot(df["st"], df["a"], label='observed acceleration')
+        plt.title("modeled %s acceleration over 4 cycles" % name)
+        plt.legend()
+        plt.xlabel("time s")
+        plt.ylabel("acceleration m/s^2")
+        plt.tight_layout()
+        plt.show()
+
+        count += 1
+
+######################################################################
 # clean up data frame to show only 1 corrected time reference
 # param: list of medusae dataframes
 ######################################################################
-def clean_time(dfs_ref):
-    for df in dfs_ref:
-        to_delete = []  # a list to store deletable time columns
-        for column in df.columns:
-            index_no = df.columns.get_loc(column)  # get the column index number
+def clean_time(df_ref):
+    # store columns to delete
+    to_delete = []
+    for column in df_ref.columns:
+        # get the column index number
+        index_no = df_ref.columns.get_loc(column)
 
-            if index_no % 2 == 1:
-                eq = True
-                second_err = False  # cancel deletion process when 2 consecutive time references are significantly differ from template
-                for row in df.index:
-                    if np.absolute(df.iat[row, 0] - round(df.iat[row, index_no], 2)) > 0.02:
-                        if second_err:
-                            eq = False
-                            break
-                        second_err = True
-                    else:
-                        second_err = False
-            else:
-                eq = False
+        # besides standard time in column 0, all time data are in odd columns
+        # --> inspect every odd columns
+        if index_no % 2 == 1:
+            # this column is a time reference
+            eq = True
+            # assume no more than 2 references in a row are considerably different to standard time
+            second_err = False
+            for row in df_ref.index:
+                if np.absolute(df_ref.iat[row, 0] - round(df_ref.iat[row, index_no], 2)) > 0.02:
+                    if second_err:
+                        break
+                    second_err = True
+                else:
+                    second_err = False
+        else:
+            eq = False
 
-            if eq:
-                to_delete.append(column)
+        if eq:
+            to_delete.append(column)
 
-        if to_delete:
-            df.drop(to_delete, axis=1, inplace=True)
+    #  delete the deletable columns
+    if to_delete:
+        df_ref.drop(to_delete, axis=1, inplace=True)
 
 
 ######################################################################
@@ -283,117 +308,173 @@ def clean_time(dfs_ref):
 # in the corrected units. these complete the basic measurements
 # param: list of medusae dataframes
 ######################################################################
-def add_basics(dfs_ref):
-    count = 0
-    for df in dfs_ref:
+def basics(df_ref):
+    # f_col = ''
+    # vel_col = ''
+    # re_col = ''
+    #
+    # for column in df.columns:
+    #     if re.search(r'f', column):
+    #         f_col = re.search(r'f', column).string
+    #         # print(f_col)
+    #     if re.search(r'v', column):
+    #         vel_col = re.search(r'v', column).string
+    #         # print(vel_col)
+    #     if re.search(r're', column):
+    #         re_col = re.search(r're', column).string
+    #         # print(re_col)
+    accelerations_o = []  # store instantaneous accelerations in converted units
+    accelerations_m = []  # store instantaneous accelerations in converted units
+    velocities = []  # store instantaneous velocities in converted units
+    heights = []  # store instantaneous heights
+    diameters = []  # store instantaneous diameters
 
-        velocities = []  # store instantaneous velocities in converted units
-        heights = []  # store instantaneous heights
-        diameters = []  # store instantaneous diameters
-        accelerations_o = []
-        accelerations_m = []
+    has_am = False
+    for column in df_ref.columns:
+        if re.search(r'am', column):
+            has_am = True
 
-        has_am = False
-
-        for column in df.columns:
-            if re.search(r'am', column):
-                has_am = True
-
-        for row in df.index:
-            u = df.at[row, 'v'] / 100.0  # convert velocity unit to m/s
-            velocities.append(u)
-            d_h = dim(df.at[row, 're'], u, df.at[row, 'f'])  # re: m^2/s / m^2/s, fineness: m/m
-            diameters.append(d_h[0])
-            heights.append(d_h[1])
-            if has_am:
-                aoc = df.at[row, 'ao'] / 100.0
-                accelerations_o.append(aoc)
-                amc = df.at[row, 'am'] / 100.0
-                accelerations_m.append(amc)
-
-        df["v"] = velocities
-        df["h"] = heights
-        df["d"] = diameters
+    for row in df_ref.index:
+        # aoc = df_ref.at[row, 'a'] / 100.0
+        # aoc_col = df_ref.columns.get_loc('a')
+        # aoc = df_ref.iat[aoc_col, row] / 100.0
+        #
+        # accelerations_o.append(aoc)
         if has_am:
-            df["ao"] = accelerations_o
-            df["am"] = accelerations_m
+            aoc = df_ref.at[row, 'ao'] / 100.0
+            accelerations_o.append(aoc)
+            amc = df_ref.at[row, 'am'] / 100.0
+            accelerations_m.append(amc)
+        else:
+            aoc = df_ref.at[row, 'a'] / 100.0
+            accelerations_o.append(aoc)
+        u = df_ref.at[row, 'v'] / 100.0  # convert velocity unit to m/s
+        velocities.append(u)
+        d_h = dim(df_ref.at[row, 're'], u, df_ref.at[row, 'f'])  # re: m^2/s / m^2/s, fineness: m/m
+        diameters.append(d_h[0])
+        heights.append(d_h[1])
 
-        count += 1
 
-
-######################################################################
-# estimate change of oblate subumbrellar volume
-######################################################################
-def dS(dV):
-    # formula acquired from Sub_volume.py
-    res = 8064 * np.power(dV, 2) + 0.1188 * dV + 1.217e-07
-    return res
+    if has_am:
+        df_ref["ao"] = accelerations_o
+        df_ref["am"] = accelerations_m
+    else:
+        df_ref["a"] = accelerations_o
+    df_ref["v"] = velocities
+    df_ref["h"] = heights
+    df_ref["d"] = diameters
 
 
 ######################################################################
 # find the modeled thrust force based on the modeled acceleration
 # derived by the basic measurements
 ######################################################################
-def find_accel(dfs_ref):
-    count = 0
-    ori_const = [(ori(0.83 / 100)), (ori(0.85 / 100)), (ori(0.56 / 100)),
-                 (ori(5 / 100)), (ori(6.5 / 100)), (ori(2.14 / 100))]
-    for df in dfs_ref:
-        volumes = []  # store instantaneous volumes
-        masses = []  # store instantaneous masses
-        orifices = []  # store constant/instantaneous orifices
-        drags = []  # store instantaneous drags
-        dSdt = [] # store instantaneous change in subumbrellar volume over change of time
-        thrusts = []  # store instantaneous thrust force
-        net_forces = []  # store instantaneous total force
-        accelerations = []  # store instantaneous acceleration
+def get_accel(df_ref):
 
-        for row in df.index:
-            h = df.at[row, 'h']
-            d = df.at[row, 'd']
-            r = df.at[row, 're']
-            u = df.at[row, 'v']
-            volumes.append(vol(h, d))
-            masses.append(mas(h, d))
-            drags.append(drg(r, h, d, u))
-            # orifices.append(ori(d))
-            orifices.append(ori_const[count])
+    # volumes = []  # store instantaneous volumes
+    # masses = []  # store instantaneous masses
+    # drags = []  # store instantaneous drags
+    # dSdt = []  # store instantaneous change in subumbrellar volume over change of time
+    # thrusts = []  # store instantaneous thrust force
+    # net_forces = []  # store instantaneous total force
+    # accelerations = []  # store instantaneous acceleration
+    #
+    # for row in df_ref.index:
+    #     h = df_ref.at[row, 'h']
+    #     d = df_ref.at[row, 'd']
+    #     r = df_ref.at[row, 're']
+    #     u = df_ref.at[row, 'v']
+    #     volumes.append(vol(h, d))
+    #     masses.append(mas(h, d))
+    #     drags.append(drg(r, h, d, u))
+    #
+    # df_ref["V"] = volumes
+    # df_ref["ori"] = ori_ref
+    #
+    # for row in list(range(len(df_ref.index) - 1)):
+    #     v1 = df_ref.at[row, 'V']
+    #     v2 = df_ref.at[row + 1, 'V']
+    #     t1 = df_ref.at[row, 'st']
+    #     t2 = df_ref.at[row + 1, 'st']
+    #     o = df_ref.at[row, 'ori']
+    #     dSdt.append(dS(v2 - v1) / (t2 - t1))
+    #     thrusts.append(thr_p(o, v1, v2, t1, t2))
+    #
+    # dSdt.append(0)
+    # thrusts.append(0)
+    #
+    # df_ref["drg"] = drags
+    # df_ref["dSdt"] = dSdt
+    # df_ref["tm"] = thrusts
+    #
+    # for row in df_ref.index:
+    #     thr = df_ref.at[row, 'tm']
+    #     drag = df_ref.at[row, 'drg']
+    #     net_forces.append(nfr(thr, drag))
+    #
+    # df_ref["m"] = masses
+    # df_ref["nfm"] = net_forces
+    #
+    # for row in df_ref.index:
+    #     m = df_ref.at[row, 'm']
+    #     f = df_ref.at[row, 'nfm']
+    #     accelerations.append(f / m)
+    #
+    # df_ref["ac"] = accelerations
+    volumes = []  # store instantaneous volumes
+    masses = []  # store instantaneous masses
+    orifices = []
+    drags = []  # store instantaneous drags
+    thrusts = []  # store instantaneous thrust force
+    net_forces = []  # store instantaneous total force
+    accelerations = []  # store instantaneous acceleration
+    dSdt = []
 
-        df["vol"] = volumes
-        df["ori"] = orifices
+    for row in df_ref.index:
+        h = df_ref.at[row, 'h']
+        d = df_ref.at[row, 'd']
+        r = df_ref.at[row, 're']
+        u = df_ref.at[row, 'v']
+        orifices.append(ori(d))
+        volumes.append(vol(h, d))
+        masses.append(mas(h, d))
+        drags.append(drg(r, h, d, u))
 
-        for row in list(range(len(df.index)-1)):
-            v1 = df.at[row, 'vol']
-            v2 = df.at[row+1, 'vol']
-            t1 = df.at[row, 'st']
-            t2 = df.at[row + 1, 'st']
-            o = df.at[row, 'ori']
-            dSdt.append(dS(v2-v1)/(t2-t1))
-            thrusts.append(thr_p(o, v1, v2, t1, t2))
+    df_ref["V"] = volumes
+    df_ref["ori"] = orifices
 
-        dSdt.append(0)
-        thrusts.append(0)
+    for row in list(range(len(df_ref.index) - 1)):
+        o = df_ref.at[row, 'ori']
+        vol1 = df_ref.at[row, 'V']
+        vol2 = df_ref.at[row+1, 'V']
+        t1 = df_ref.at[row, 'st']
+        t2 = df_ref.at[row+1, 'st']
+        dsdt = dS(vol2-vol1)/(t2 - t1)
+        dSdt.append(dsdt)
+        thrusts.append(3*(sea_den / o * np.power(dsdt, 2)))
 
-        df["drag"] = drags
-        df["dSdt"] = dSdt
-        df["thrust"] = thrusts
+    dSdt.append(0)
+    thrusts.append(0)
 
-        for row in df.index:
-            thr = df.at[row, 'thrust']
-            drag = df.at[row, 'drag']
-            net_forces.append(nfr(thr, drag))
+    df_ref["dSdt"] = dSdt
+    df_ref["drg"] = drags
+    df_ref["tm"] = thrusts
 
-        df["mass"] = masses
-        df["force"] = net_forces
+    for row in df_ref.index:
+        thr = df_ref.at[row, 'tm']
+        drag = df_ref.at[row, 'drg']
+        net_forces.append(nfr(thr, drag))
 
-        for row in df.index:
-            m = df.at[row, 'mass']
-            f = df.at[row, 'force']
-            accelerations.append(f/m)
 
-        df["ac"] = accelerations
+    df_ref["m"] = masses
+    df_ref["nfm"] = net_forces
 
-        count += 1
+    for row in df_ref.index:
+        m = df_ref.at[row, 'm']
+        f = df_ref.at[row, 'nfm']
+        accelerations.append(f / m)
+
+    df_ref["ac"] = accelerations
 
 
 ######################################################################
@@ -484,6 +565,33 @@ def ori(d_ref):
 
 
 ######################################################################
+# get net force (g * m / s^2)
+# param: bell height(m), bell diameter(m), modeled acceleration(m/s^2)
+######################################################################
+def nfr_m(h_ref, d_ref, am_ref):
+    mass = mas(h_ref, d_ref)
+    # force = mass * acceleration
+    # force: g * m / s^2 = g * (m / s^2)
+    net_force = mass * am_ref
+    return net_force
+
+
+######################################################################
+# get thrust (g * m / s^2)
+# param: bell height(m), bell diameter(m), acceleration(m/s^2),
+#        Re, swimming velocity (m/s)
+######################################################################
+def thr_m(h_ref, d_ref, am_ref, re_ref, u_ref):
+    force = nfr_m(h_ref, d_ref, am_ref)
+    drag = drg(re_ref, h_ref, d_ref, u_ref)
+    thrust = force + drag
+    if thrust < 0:
+        return 0
+    else:
+        return thrust
+
+
+######################################################################
 # change of subumbrellar volume with respect to the change of
 # bell volume
 ######################################################################
@@ -515,6 +623,15 @@ def nfr(thr_ref, drg_ref):
     # force: g * m / s^2 = g * m / s^2 - g * m / s^2
     net_force = thr_ref - drg_ref
     return net_force
+
+
+######################################################################
+# estimate change of oblate subumbrellar volume
+######################################################################
+def dS(dV):
+    # formula acquired from Sub_volume.py
+    ds = 1.263 * dV + 7.357e-09
+    return ds
 
 
 ######################################################################

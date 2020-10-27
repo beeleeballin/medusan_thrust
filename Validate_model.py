@@ -17,10 +17,10 @@ sea_den = 1.024 * np.power(10.0, 6)  # g/m^3, 1.024 g/cm^3 (Colin & Costello, 20
 sea_vis = np.power(10.0, -6)  # m^2/s
 
 
-######################################################################
-# task 2: validate my replicated of the model
-######################################################################
 def main():
+    ######################################################################
+    # task 2: validate the model via implementation
+    ######################################################################
     # import pre-cleaned up csv files, 1 prolate 1 oblates
     s_sp = pd.read_csv(s_sp_f)
     p_gregarium = pd.read_csv(p_gregarium_f)
@@ -28,7 +28,8 @@ def main():
     dfs = [s_sp, p_gregarium]
     name = ['s_sp', 'p_gregarium']
 
-    # s_sp: 0.85cm diameter, p_gregarium: 2.14cm diameter (Colin & Costello, 2001)
+    # set constant orifice areas for medusa
+    # s_sp: 0.85cm, p_gregarium: 2.14cm (Colin & Costello, 2001)
     s_sp_ori = ori(0.85 / 100)
     p_gregarium_ori = ori(2.14 / 100)
     # group the two constant orifice areas for easy access
@@ -142,9 +143,14 @@ def main():
 
         dfs_count += 1
 
-    # reimport a pre-cleaned up oblates csv file
+
+    ######################################################################
+    # task 3: validate our improved model by tweaking the tested
+    # implementation of the published model
+    ######################################################################
+    # reimport a pre-cleaned up p.gregarium csv as df
     p_gregarium = pd.read_csv(p_gregarium_f)
-    # group the two medusae of interest for easy access
+    # run it through our modified model
     improved_model(p_gregarium)
     dfs = split_gregarium(p_gregarium)
 
@@ -224,8 +230,6 @@ def main():
     plt.show()
 
 
-
-
 ######################################################################
 # run my implementation of their model
 # param: dfs, constant orifice, and species names
@@ -234,10 +238,13 @@ def copy_model(dfs_ref, oris_ref, name_ref):
     count = 0
     for (df, o) in zip(dfs_ref, oris_ref):
         clean_time(df)
-        basics(df)
-        thrust_model(df, o)
-        get_accel(df, o)
+        get_basics(df)
+        get_thrust(df, o)
+        get_accel(df)
+        # the last row of dSdt are zeroed because it requires the change in time
+        # and because it would effect the output we ignore that last row entirely
         df.drop(df.tail(1).index, inplace=True)
+
         plt.plot(df["st"], df["ac"], label='modeled acceleration')
         plt.plot(df["st"], df["am"], label='published acceleration')
         plt.plot(df["st"], df["ao"], label='observed acceleration')
@@ -252,20 +259,19 @@ def copy_model(dfs_ref, oris_ref, name_ref):
 
 ######################################################################
 # run my implementation of their model
-# param: dfs, constant orifice, and species names
+# param: dfs
 ######################################################################
-def improved_model(df):
+def improved_model(df_ref):
 
-    clean_time(df)
-    basics(df)
-    correct_thrust_model(df)
-    get_correct_accel(df)
-    df.drop(df.tail(1).index, inplace=True)
+    clean_time(df_ref)
+    get_basics(df_ref)
+    get_thrust(df_ref)
+    get_accel(df_ref, True)
+    df_ref.drop(df_ref.tail(1).index, inplace=True)
 
-
-    plt.plot(df["st"], df["ac"], label='modeled acceleration')
-    plt.plot(df["st"], df["am"], label='published acceleration')
-    plt.plot(df["st"], df["ao"], label='observed acceleration')
+    plt.plot(df_ref["st"], df_ref["ac"], label='modeled acceleration')
+    plt.plot(df_ref["st"], df_ref["am"], label='published acceleration')
+    plt.plot(df_ref["st"], df_ref["ao"], label='observed acceleration')
     plt.title("modeled p_gregarium acceleration over 4 cycles by improved model is closes gap with observed model")
     plt.legend()
     plt.xlabel("time s")
@@ -304,6 +310,7 @@ def split_gregarium(df_ref):
     ref_3['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 3)
     ref_4 = df_ref[13:17].copy()
     ref_4['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 3)
+
     return [ref_1, ref_2, ref_3, ref_4]
 
 
@@ -344,11 +351,11 @@ def clean_time(df_ref):
 
 
 ######################################################################
-# add instantaneous heights, diameters, and velocities and accelerations
-# in the corrected units. these complete the basic measurements
+# add instantaneous heights, diameters, and update velocities and
+# accelerations to the corrected units
 # param: list of medusae dataframes
 ######################################################################
-def basics(df_ref):
+def get_basics(df_ref):
     accelerations_o = []  # store instantaneous accelerations in converted units
     accelerations_m = []  # store instantaneous accelerations in converted units
     velocities = []  # store instantaneous velocities in converted units
@@ -371,7 +378,7 @@ def basics(df_ref):
             accelerations_o.append(aoc)
         u = df_ref.at[row, 'v'] / 100.0  # convert velocity unit to m/s
         velocities.append(u)
-        d_h = dim(df_ref.at[row, 're'], u, df_ref.at[row, 'f'])  # re: m^2/s / m^2/s, fineness: m/m
+        d_h = bell_dim(df_ref.at[row, 're'], u, df_ref.at[row, 'f'])  # re: m^2/s / m^2/s, fineness: m/m
         diameters.append(d_h[0])
         heights.append(d_h[1])
 
@@ -387,54 +394,11 @@ def basics(df_ref):
 
 
 ######################################################################
-# implement the thrust model accordingly based on the acceleration
-# provided in the article
+# implement the original and improved thrust model based on the modeled
+# acceleration provided in the article. improved model uses instantaneous
+# orifice area
 ######################################################################
-def thrust_model(df_ref, ori_ref):
-    volumes = []  # store instantaneous volumes
-    masses = []  # store instantaneous masses
-    drags = []  # store instantaneous drags
-    net_forces = []  # store instantaneous net_forces
-    thrusts = []  # store instantaneous thrusts
-    dSdt = []  # store instantaneous dSdt
-
-    for row in df_ref.index:
-        am = df_ref.at[row, 'am']
-        v = df_ref.at[row, 'v']
-        r = df_ref.at[row, 're']
-        h = df_ref.at[row, 'h']
-        d = df_ref.at[row, 'd']
-        volumes.append(vol(h, d))
-        masses.append(mas(h, d))
-        net_forces.append(nf_am(h, d, am))
-        drags.append(drg(r, h, d, v))
-        thrusts.append(thr_am(h, d, am, r, v))
-
-    df_ref["V"] = volumes
-    df_ref["m"] = masses
-    df_ref["nfm"] = net_forces
-    df_ref["drg"] = drags
-    df_ref["tm"] = thrusts
-
-    for row in (list(range(len(df_ref.index) - 1))):
-        v1 = df_ref.at[row, 'V']
-        v2 = df_ref.at[row + 1, 'V']
-        f = df_ref.at[row, 'tm']
-        if v1 > v2:
-            dSdt.append(-1 * np.sqrt(ori_ref / sea_den * f))
-        else:
-            dSdt.append(np.sqrt(ori_ref / sea_den * f))
-
-    dSdt.append(0)
-
-    df_ref["dSdt"] = dSdt
-
-
-######################################################################
-# get an improved thrust model by integrating changing orifice area, but
-# calculation still based on the acceleration provided in the article
-######################################################################
-def correct_thrust_model(df_ref):
+def get_thrust(df_ref, ori_ref=None):
     orifices = []  # store instantaneous orifice area
     volumes = []  # store instantaneous volumes
     masses = []  # store instantaneous masses
@@ -449,25 +413,28 @@ def correct_thrust_model(df_ref):
         r = df_ref.at[row, 're']
         h = df_ref.at[row, 'h']
         d = df_ref.at[row, 'd']
-        orifices.append(ori(d))
-        volumes.append(vol(h, d))
-        masses.append(mas(h, d))
+        if ori_ref is None:
+            orifices.append(ori(d))
+        else:
+            orifices.append(ori_ref)
+        volumes.append(bell_vol(h, d))
+        masses.append(bell_mas(h, d))
         net_forces.append(nf_am(h, d, am))
-        drags.append(drg(r, h, d, v))
-        thrusts.append(thr_am(h, d, am, r, v))
+        drags.append(bell_drag(r, h, d, v))
+        thrusts.append(tf_am(h, d, am, r, v))
 
     df_ref["ori"] = orifices
     df_ref["V"] = volumes
     df_ref["m"] = masses
-    df_ref["nfm"] = net_forces
+    df_ref["nf"] = net_forces
     df_ref["drg"] = drags
-    df_ref["tm"] = thrusts
+    df_ref["tf"] = thrusts
 
     for row in (list(range(len(df_ref.index) - 1))):
         o = df_ref.at[row, 'ori']
         v1 = df_ref.at[row, 'V']
         v2 = df_ref.at[row + 1, 'V']
-        f = df_ref.at[row, 'tm']
+        f = df_ref.at[row, 'tf']
         if v1 > v2:
             dSdt.append(-1 * np.sqrt(o / sea_den * f))
         else:
@@ -479,40 +446,11 @@ def correct_thrust_model(df_ref):
 
 
 ######################################################################
-# get acceleration based on the published acceleration. used to
-# check if the model has been implemented correctly
+# get acceleration based on the modeled acceleration estimate.
+# used to check if the model has been implemented correctly
+# and compare to the observed acceleration
 ######################################################################
-def get_accel(df_ref, ori_ref):
-    new_thrusts = []  # store instantaneous thrust force
-    new_net_forces = []  # store instantaneous total force
-    accelerations = []  # store instantaneous acceleration
-
-    for row in df_ref.index:
-        dSdt = df_ref.at[row, "dSdt"]
-        new_thrusts.append(sea_den / ori_ref * np.power(dSdt, 2))
-
-    df_ref["tm"] = new_thrusts
-
-    for row in df_ref.index:
-        thr = df_ref.at[row, 'tm']
-        drag = df_ref.at[row, 'drg']
-        new_net_forces.append(nf(thr, drag))
-
-    df_ref["nfm"] = new_net_forces
-
-    for row in df_ref.index:
-        m = df_ref.at[row, 'm']
-        f = df_ref.at[row, 'nfm']
-        accelerations.append(f / m)
-
-    df_ref["ac"] = accelerations
-
-
-######################################################################
-# get acceleration based on the improved acceleration calculation.
-# used to compare to the observed acceleration
-######################################################################
-def get_correct_accel(df_ref):
+def get_accel(df_ref, improved=False):
     new_thrusts = []  # store instantaneous thrust force
     new_net_forces = []  # store instantaneous total force
     accelerations = []  # store instantaneous acceleration
@@ -522,28 +460,31 @@ def get_correct_accel(df_ref):
         dSdt = df_ref.at[row, "dSdt"]
         new_thrusts.append(sea_den / o * np.power(dSdt, 2))
 
-    df_ref["tm"] = new_thrusts
+    df_ref["tf"] = new_thrusts
 
     for row in df_ref.index:
-        thr = df_ref.at[row, 'tm']
+        thr = df_ref.at[row, 'tf']
         drag = df_ref.at[row, 'drg']
-        new_net_forces.append(nf(3*thr, drag))
+        if improved is True:
+            new_net_forces.append(nf_tf(3*thr, drag))
+        else:
+            new_net_forces.append(nf_tf(thr, drag))
 
-    df_ref["nfm"] = new_net_forces
+    df_ref["nf"] = new_net_forces
 
     for row in df_ref.index:
         m = df_ref.at[row, 'm']
-        f = df_ref.at[row, 'nfm']
+        f = df_ref.at[row, 'nf']
         accelerations.append(f / m)
 
     df_ref["ac"] = accelerations
 
 
 ######################################################################
-# get bell diameter (m) and height (m)
+# calculate bell diameter (m) and height (m)
 # param: Re, velocity(m/s), fineness
 ######################################################################
-def dim(re_ref, u_ref, f_ref):
+def bell_dim(re_ref, u_ref, f_ref):
     # bell diameter = Re * sea kinematic viscosity / swimming velocity
     # diameter: m = (m^2/s / m^2/s) (m^2/s) / m/s
     d_b = 1.0 * re_ref * sea_vis / np.absolute(u_ref)
@@ -554,10 +495,10 @@ def dim(re_ref, u_ref, f_ref):
 
 
 ######################################################################
-# get bell volume (m^3)
+# calculate bell volume (m^3)
 # param: bell height(m), bell diameter(m)
 ######################################################################
-def vol(h_ref, d_ref):
+def bell_vol(h_ref, d_ref):
     # bell radius = bell diameter / 2
     # radius: m
     radius = d_ref / 2
@@ -568,11 +509,11 @@ def vol(h_ref, d_ref):
 
 
 ######################################################################
-# get effective mass (g)
+# calculate effective mass (g)
 # param: bell height(m), bell diameter(m)
 ######################################################################
-def mas(h_ref, d_ref):
-    volume = vol(h_ref, d_ref)
+def bell_mas(h_ref, d_ref):
+    volume = bell_vol(h_ref, d_ref)
     # mass coefficient = bell diameter / 2 * bell height^(1.4)
     # coefficient = m/m
     coe = np.power(d_ref / 2 / h_ref, 1.4)
@@ -583,10 +524,10 @@ def mas(h_ref, d_ref):
 
 
 ######################################################################
-# get drag (g * m / s^2)
+# calculate drag (g * m / s^2)
 # param: Re, bell height(m), bell diameter(m), swimming velocity (m/s)
 ######################################################################
-def drg(re_ref, h_ref, d_ref, u_ref):
+def bell_drag(re_ref, h_ref, d_ref, u_ref):
     if re_ref > 700:
         return 0
     elif re_ref < 1:
@@ -613,7 +554,7 @@ def drg(re_ref, h_ref, d_ref, u_ref):
 
 
 ######################################################################
-# get orifice area (m^2)
+# calculate orifice area (m^2)
 # param: bell diameter(m)
 ######################################################################
 def ori(d_ref):
@@ -631,7 +572,7 @@ def ori(d_ref):
 # param: bell height(m), bell diameter(m), modeled acceleration(m/s^2)
 ######################################################################
 def nf_am(h_ref, d_ref, am_ref):
-    mass = mas(h_ref, d_ref)
+    mass = bell_mas(h_ref, d_ref)
     # force = mass * acceleration
     # force: g * m / s^2 = g * (m / s^2)
     net_force = mass * am_ref
@@ -643,9 +584,9 @@ def nf_am(h_ref, d_ref, am_ref):
 # param: bell height(m), bell diameter(m), acceleration(m/s^2),
 #        Re, swimming velocity (m/s)
 ######################################################################
-def thr_am(h_ref, d_ref, am_ref, re_ref, u_ref):
+def tf_am(h_ref, d_ref, am_ref, re_ref, u_ref):
     force = nf_am(h_ref, d_ref, am_ref)
-    drag = drg(re_ref, h_ref, d_ref, u_ref)
+    drag = bell_drag(re_ref, h_ref, d_ref, u_ref)
     thrust = force + drag
     if thrust < 0:
         return 0
@@ -657,7 +598,7 @@ def thr_am(h_ref, d_ref, am_ref, re_ref, u_ref):
 # get net force (g * m / s^2) from thrust and drag
 # param: thrust (g * m / s^2), drag (g * m / s^2)
 ######################################################################
-def nf(thr_ref, drg_ref):
+def nf_tf(thr_ref, drg_ref):
     # force = thrust - drag
     # force: g * m / s^2 = g * m / s^2 - g * m / s^2
     net_force = thr_ref - drg_ref
