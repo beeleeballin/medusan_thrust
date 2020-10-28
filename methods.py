@@ -15,6 +15,15 @@ p_flavicirrata_f = f_path + "p_flavicirrata_data.csv"
 a_victoria_f = f_path + "a_victoria_data.csv"
 m_cellularia_f = f_path + "m_cellularia_data.csv"
 p_gregarium_f = f_path + "p_gregarium_data.csv"
+a_aurita_f = f_path + "a_aurita_data.csv"
+e_indicans_f = f_path + "e_indicans_data.csv"
+s_meleagris_f = f_path + "s_meleagris_data.csv"
+l_unguiculata_f = f_path + "l_unguiculata_data.csv"
+c_capillata_f = f_path + "c_capillata_data.csv"
+c_capillata_2_f = f_path + "c_capillata_2_data.csv"
+l_tetrephylla_f = f_path + "l_tetrephylla_data.csv"
+l_tetrephylla_2_f = f_path + "l_tetrephylla_2_data.csv"
+
 
 sea_den = 1.024 * np.power(10.0, 6)  # g/m^3, 1.024 g/cm^3 (Colin & Costello, 2001)
 sea_vis = np.power(10.0, -6)  # m^2/s
