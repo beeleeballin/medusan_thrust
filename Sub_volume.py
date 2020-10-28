@@ -1,16 +1,4 @@
-import pandas as pd
-import numpy as np
-import re
-from matplotlib import pyplot as plt
-from matplotlib.pyplot import figtext
 from methods import *
-
-f_path = "/Users/beelee/PycharmProjects/OblateThrust/csv/"
-s_sp_f = f_path + "s_sp_data.csv"
-p_gregarium_f = f_path + "p_gregarium_data.csv"
-
-sea_den = 1.024 * np.power(10.0, 6)  # g/m^3, 1.024 g/cm^3 (Colin & Costello, 2001)
-sea_vis = np.power(10.0, -6)  # m^2/s
 
 
 ######################################################################

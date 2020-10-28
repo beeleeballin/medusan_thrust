@@ -1,23 +1,4 @@
-import pandas as pd
-import numpy as np
-import re
-from matplotlib import pyplot as plt
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn.pipeline import Pipeline
 from methods import *
-
-f_path = "/Users/beelee/PycharmProjects/OblateThrust/csv/"
-a_digitale_f = f_path + "a_digitale_data.csv"
-s_sp_f = f_path + "s_sp_data.csv"
-p_flavicirrata_f = f_path + "p_flavicirrata_data.csv"
-a_victoria_f = f_path + "a_victoria_data.csv"
-m_cellularia_f = f_path + "m_cellularia_data.csv"
-p_gregarium_f = f_path + "p_gregarium_data.csv"
-
-sea_den = 1.024 * np.power(10.0, 6)  # g/m^3, 1.024 g/cm^3 (Colin & Costello, 2001)
-sea_vis = np.power(10.0, -6)  # m^2/s
 
 
 ######################################################################
@@ -86,11 +67,11 @@ def main():
         for df in dfs:
             bel_vol = df["V"].max() - df["V"].min()
             if dfs_count <= 2:
-                ej_vol = dS(bel_vol, False)
+                ej_vol = ds_dv(bel_vol, False)
                 total_x1 = np.append(total_x1, ej_vol)
                 total_y1 = np.append(total_y1, df["tf"].max())
             else:
-                ej_vol = dS(bel_vol, True)
+                ej_vol = ds_dv(bel_vol, True)
                 total_x2 = np.append(total_x2, ej_vol)
                 total_y2 = np.append(total_y2, df["tf"].max())
         dfs_count += 1

@@ -2,11 +2,19 @@ import pandas as pd
 import numpy as np
 import re
 from matplotlib import pyplot as plt
+from matplotlib.pyplot import figtext
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import Pipeline
-from matplotlib.pyplot import figtext
+
+f_path = "/Users/beelee/PycharmProjects/OblateThrust/csv/"
+a_digitale_f = f_path + "a_digitale_data.csv"
+s_sp_f = f_path + "s_sp_data.csv"
+p_flavicirrata_f = f_path + "p_flavicirrata_data.csv"
+a_victoria_f = f_path + "a_victoria_data.csv"
+m_cellularia_f = f_path + "m_cellularia_data.csv"
+p_gregarium_f = f_path + "p_gregarium_data.csv"
 
 sea_den = 1.024 * np.power(10.0, 6)  # g/m^3, 1.024 g/cm^3 (Colin & Costello, 2001)
 sea_vis = np.power(10.0, -6)  # m^2/s
@@ -19,7 +27,7 @@ sea_vis = np.power(10.0, -6)  # m^2/s
 def copy_model(df_ref, ori_ref):
     clean_time(df_ref)
     get_basics(df_ref)
-    get_dSdt(df_ref, ori_ref)
+    get_dsdt(df_ref, ori_ref)
     return_accel(df_ref)
 
     # the last row of dSdt are zeroed because it requires the change in time
@@ -34,7 +42,7 @@ def copy_model(df_ref, ori_ref):
 def tweaked_model(df_ref):
     clean_time(df_ref)
     get_basics(df_ref)
-    get_dSdt(df_ref)
+    get_dsdt(df_ref)
     return_accel(df_ref, True)
 
     df_ref.drop(df_ref.tail(1).index, inplace=True)
@@ -113,7 +121,6 @@ def get_basics(df_ref):
         diameters.append(d_h[0])
         heights.append(d_h[1])
 
-
     if has_am:
         df_ref["am"] = accelerations_m
     # else:
@@ -129,14 +136,14 @@ def get_basics(df_ref):
 # acceleration provided in the article. improved model uses instantaneous
 # orifice area
 ######################################################################
-def get_dSdt(df_ref, ori_ref=None):
+def get_dsdt(df_ref, ori_ref=None):
     orifices = []
     volumes = []
     masses = []
     drags = []
     net_forces = []
     thrusts = []
-    dSdt = []
+    dsdt = []
 
     for row in df_ref.index:
         am = df_ref.at[row, 'am']
@@ -167,13 +174,13 @@ def get_dSdt(df_ref, ori_ref=None):
         v2 = df_ref.at[row + 1, 'V']
         f = df_ref.at[row, 'tf']
         if v1 > v2:
-            dSdt.append(-1 * np.sqrt(o / sea_den * f))
+            dsdt.append(-1 * np.sqrt(o / sea_den * f))
         else:
-            dSdt.append(np.sqrt(o / sea_den * f))
+            dsdt.append(np.sqrt(o / sea_den * f))
 
-    dSdt.append(0)
+    dsdt.append(0)
 
-    df_ref["dSdt"] = dSdt
+    df_ref["dSdt"] = dsdt
 
 
 ######################################################################
@@ -188,8 +195,8 @@ def return_accel(df_ref, improved=False):
 
     for row in df_ref.index:
         o = df_ref.at[row, "ori"]
-        dSdt = df_ref.at[row, "dSdt"]
-        new_thrusts.append(sea_den / o * np.power(dSdt, 2))
+        st = df_ref.at[row, "dSdt"]
+        new_thrusts.append(sea_den / o * np.power(st, 2))
 
     df_ref["tf"] = new_thrusts
 
@@ -217,10 +224,10 @@ def return_accel(df_ref, improved=False):
 ######################################################################
 def sub_n_vol_change(df_ref, ori_ref):
     thrust = ""
-    dV = []
-    dS = []
-    dVdt = []
-    dSdV = []
+    dv = []
+    ds = []
+    dvdt = []
+    dsdv = []
 
     for column in df_ref.columns:
         if re.search(r'tf', column):
@@ -229,22 +236,22 @@ def sub_n_vol_change(df_ref, ori_ref):
         t = df_ref.at[0, 'st']
         v1 = df_ref.at[row, 'V']
         v2 = df_ref.at[row + 1, 'V']
-        dV.append(v2 - v1)
-        dVdt.append((v2 - v1) / t)
+        dv.append(v2 - v1)
+        dvdt.append((v2 - v1) / t)
         f = df_ref.at[row, thrust]
-        SV = dsdv(f, ori_ref, v1, v2, t)
-        dSdV.append(SV)
-        dS.append(SV * (v2 - v1))
+        sv = dsdv_tf(f, ori_ref, v1, v2, t)
+        dsdv.append(sv)
+        ds.append(sv * (v2 - v1))
 
-    dV.append(0)
-    dS.append(0)
-    dVdt.append(0)
-    dSdV.append(0)
+    dv.append(0)
+    ds.append(0)
+    dvdt.append(0)
+    dsdv.append(0)
 
-    df_ref["dV"] = dV
-    df_ref["dS"] = dS
-    df_ref["dVdt"] = dVdt
-    df_ref["dSdV"] = dSdV
+    df_ref["dV"] = dv
+    df_ref["dS"] = ds
+    df_ref["dVdt"] = dvdt
+    df_ref["dSdV"] = dsdv
 
 
 ######################################################################
@@ -260,7 +267,7 @@ def get_accel(df_ref):
     thrusts = []
     net_forces = []
     accelerations = []
-    dSdt = []
+    dsdt = []
 
     for row in df_ref.index:
         h = df_ref.at[row, 'h']
@@ -281,14 +288,14 @@ def get_accel(df_ref):
         vol2 = df_ref.at[row+1, 'V']
         t1 = df_ref.at[row, 'st']
         t2 = df_ref.at[row+1, 'st']
-        dsdt = dS(vol2-vol1)/(t2 - t1)
-        dSdt.append(dsdt)
-        thrusts.append(tf_dSdt(o, dsdt))
+        st = ds_dv(vol2-vol1)/(t2 - t1)
+        dsdt.append(st)
+        thrusts.append(tf_dsdt(o, st))
 
-    dSdt.append(0)
+    dsdt.append(0)
     thrusts.append(0)
 
-    df_ref["dSdt"] = dSdt
+    df_ref["dSdt"] = dsdt
     df_ref["drg"] = drags
     df_ref["tf"] = thrusts
 
@@ -315,7 +322,7 @@ def get_accel(df_ref):
 def get_thrust(df_ref):
     volumes = []  # store instantaneous volumes
     thrusts = []  # store instantaneous thrusts
-    dVs = []
+    dv = []
 
     for row in df_ref.index:
         v = df_ref.at[row, 'v']
@@ -333,10 +340,10 @@ def get_thrust(df_ref):
         t = df_ref.at[row, 'st']
         v1 = df_ref.at[row, 'V']
         v2 = df_ref.at[row+1, 'V']
-        dVs.append((v2-v1)/t)
+        dv.append((v2-v1)/t)
 
-    dVs.append(0)
-    df_ref["dV"] = dVs
+    dv.append(0)
+    df_ref["dV"] = dv
 
 
 ######################################################################
@@ -479,7 +486,7 @@ def nf_tf(thr_ref, drg_ref):
 # change of subumbrellar volume with respect to the change of
 # bell volume
 ######################################################################
-def dsdv(thrust_ref, ori_ref, vol_1, vol_2, t):
+def dsdv_tf(thrust_ref, ori_ref, vol_1, vol_2, t):
     # this calculated dsdt value will always be positive, but it is
     # negative when dv when dvdt is negative, which notes a contracting
     # bell. therefore, dsdv should always be positive
@@ -493,21 +500,22 @@ def dsdv(thrust_ref, ori_ref, vol_1, vol_2, t):
 # estimate change of prolate and oblate subumbrellar volume
 # equation acquired from Sub_volume.py
 ######################################################################
-def dS(dV_ref, oblate=True):
+def ds_dv(dv_ref, oblate=True):
     if oblate:
-        ds = 3*(0.345 * dV_ref - 1.34e-07)
+        ds = 3*(0.345 * dv_ref - 1.34e-07)
     else:
-        ds = 1.263 * dV_ref + 7.357e-09
+        ds = 1.263 * dv_ref + 7.357e-09
 
     return ds
+
 
 ######################################################################
 # get thrust (g * m / s^2) from dSdt
 # param: orifice area, dSdt
 ######################################################################
-def tf_dSdt(ori_ref, dSdt_ref):
+def tf_dsdt(ori_ref, dsdt_ref):
     # g * m / (s^2) = (g / m^3) / (m^2) * (m^3/s)^2
-    thrust = sea_den / ori_ref * np.power(dSdt_ref, 2)
+    thrust = sea_den / ori_ref * np.power(dsdt_ref, 2)
     return thrust
 
 
