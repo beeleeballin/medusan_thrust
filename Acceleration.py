@@ -9,8 +9,9 @@ from methods import *
 # calculation adjustment are implemented. MODEL2 is examined for its
 # acceleration over time estimate and maximum thrusts.
 # RESULT:
-# while the test results for 1 oblate medusae were favorable, the other
-# 2 were not. a new approach is needed.
+# while the test results for 1 oblate medusae were slightly more favorable
+# (it'd be better if we have more data) the other 2 were not.
+# a new approach is needed.
 ######################################################################
 def main():
     # import pre-cleaned up csv files, 3 oblates
@@ -23,23 +24,13 @@ def main():
     p_gregarium = pd.read_csv(p_gregarium_f)
     # group the medusa of interest for easy access
     dfs = [a_victoria, m_cellularia, p_gregarium]  # a_digitale, s_sp, p_flavicirrata,
-    name = ["a_victoria", "m_cellularia", "p_gregarium"]  # "a_digitale", "s_sp", "p_flavicirrata",
+    name = ["A. victoria", "M. cellularia", "P. gregarium"]  # "a_digitale", "s_sp", "p_flavicirrata",
 
     # oris= [(ori(0.83 / 100)), (ori(0.85 / 100)), (ori(0.56 / 100)),
-    #              (ori(5 / 100)), (ori(6.5 / 100)), (ori(2.14 / 100))]
+    #        (ori(5 / 100)), (ori(6.5 / 100)), (ori(2.14 / 100))]
 
-    df_count = 0
     for df in dfs:
         improved_model(df)
-        plt.plot(df["st"], df["ac"], label='modeled acceleration')
-        plt.plot(df["st"], df["ao"], label='observed acceleration')
-        plt.title("%s acceleration estimates by MODEL2 and the published model" % name[df_count])
-        plt.legend()
-        plt.xlabel("time s")
-        plt.ylabel("acceleration m/s^2")
-        plt.tight_layout()
-        plt.show()
-        df_count += 1
 
     dfss = [split_victoria(dfs[0]), split_cellularia(dfs[1]), split_gregarium(dfs[2])]
 
@@ -51,29 +42,38 @@ def main():
 
     dfs_count = 0
     for dfs in dfss:
-        acc_per_cycle = np.empty([4, 2])
+        acc_per_cycle = np.empty([8])
         df_count = 0
         for df in dfs:
-            acc_per_cycle[df_count][0] = max(df["ac"])
-            acc_per_cycle[df_count][1] = max(df["ao"])
+            acc_per_cycle[df_count * 2] = max(df["ac"])
+            acc_per_cycle[df_count * 2 + 1] = max(df["ao"])
             df_count += 1
-        means = [np.mean(acc_per_cycle[:, 0]), np.mean(acc_per_cycle[:, 1])]
-        errors = [np.std(acc_per_cycle[:, 0]) / 2, np.std(acc_per_cycle[:, 1]) / 2]
-        labels = ['modeled', 'observed']
-        plt.xlabel('2 acceleration data')
-        plt.ylabel('max acceleration per cycle m*s^-2')
-        plt.title("%s max acceleration estimates by MODEL2 and the published model" % name[dfs_count])
-        plt.xticks(range(2), labels)
-        width = 0.15
-        plt.bar(np.arange(2), acc_per_cycle[0], width=width, label='cycle #1')
-        plt.bar(np.arange(2) + width, acc_per_cycle[1], width=width, label='cycle #2')
-        plt.bar(np.arange(2) + 2 * width, acc_per_cycle[2], width=width, label='cycle #3')
-        plt.bar(np.arange(2) + 3 * width, acc_per_cycle[3], width=width, label='cycle #4')
-        plt.bar(np.arange(2) + 4 * width, means, yerr=errors, width=width, label='average')
+        max_acc = pd.DataFrame(acc_per_cycle, columns=['accel'])
+        acc_type = ['ac', 'ao']
+        for row in max_acc.index:
+            max_acc.loc[row, 'type'] = acc_type[row % 2]
+        ac_ao_p = stats.f_oneway(max_acc['accel'][max_acc['type'] == 'ac'],
+                                 max_acc['accel'][max_acc['type'] == 'ao'])[1]
+        max_acc = max_acc.pivot(columns='type', values='accel')
+        max_acc = max_acc.reindex(columns=['ac', 'ao'])
+        max_acc = max_acc.apply(lambda x: pd.Series(x.dropna().values))
+        means = max_acc.mean(axis=0)
+        errors = max_acc.std(axis=0) / 2
+        width = 0.1
+        plt.bar(np.arange(2), means, yerr=errors, width=7 * width, label='means', color='dodgerblue')
+        plt.bar(np.arange(2) - 1.5 * width, max_acc.iloc[0], alpha=0.5, width=width, color='green')
+        plt.bar(np.arange(2) - 0.5 * width, max_acc.iloc[1], alpha=0.5, width=width, color='green')
+        plt.bar(np.arange(2) + 0.5 * width, max_acc.iloc[2], alpha=0.5, width=width, color='green')
+        plt.bar(np.arange(2) + 1.5 * width, max_acc.iloc[3], alpha=0.5, width=width, color='green')
         plt.legend()
+        labels = ['MODEL2 Estimate', 'Observed Acceleration']
+        plt.ylabel('Max Acceleration m/s^2')
+        plt.title("MODEL2 max acceleration estimate and observed data for %s" % name[dfs_count])
+        plt.xticks(range(2), labels)
+        figtext(0.15, 0.78, "modeled & observed: p = %.2E" % ac_ao_p)
         plt.show()
-
         dfs_count += 1
+
     # dfs_count = 0
     # for dfs in dfss:
     #     total_x = np.array([])

@@ -38,7 +38,7 @@ def main():
         plt.plot(df["st"], df["ao"], label='observed acceleration', color='green')
         plt.title("MODEL1 acceleration estimate matches the published %s acceleration estimate" % name[dfs_count])
         plt.legend()
-        plt.xlabel("Time s")
+        plt.xlabel("Swimming Time s")
         plt.ylabel("Acceleration m/s^2")
         plt.tight_layout()
         plt.show()
@@ -69,6 +69,7 @@ def main():
         ac_ao_p = stats.f_oneway(max_acc['accel'][max_acc['type'] == 'ac'],
                                  max_acc['accel'][max_acc['type'] == 'ao'])[1]
         max_acc = max_acc.pivot(columns='type', values='accel')
+        max_acc = max_acc.reindex(columns=['am', 'ac', 'ao'])
         max_acc = max_acc.apply(lambda x: pd.Series(x.dropna().values))
         means = max_acc.mean(axis=0)
         errors = max_acc.std(axis=0)/2
