@@ -7,6 +7,9 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import Pipeline
+import researchpy as rp
+import statsmodels.api as sm
+import scipy.stats as stats
 
 f_path = "/Users/beelee/PycharmProjects/OblateThrust/csv/"
 a_digitale_f = f_path + "a_digitale_data.csv"
@@ -21,9 +24,11 @@ s_meleagris_f = f_path + "s_meleagris_data.csv"
 l_unguiculata_f = f_path + "l_unguiculata_data.csv"
 c_capillata_f = f_path + "c_capillata_data.csv"
 c_capillata_2_f = f_path + "c_capillata_2_data.csv"
-l_tetrephylla_f = f_path + "l_tetrephylla_data.csv"
-l_tetrephylla_2_f = f_path + "l_tetrephylla_2_data.csv"
-
+l_tetraphylla_f = f_path + "l_tetraphylla_data.csv"
+l_tetraphylla_2_f = f_path + "l_tetraphylla_2_data.csv"
+all_csv = [a_digitale_f, s_sp_f, p_flavicirrata_f, s_meleagris_f, l_unguiculata_f,
+           l_tetraphylla_f, l_tetraphylla_2_f, a_victoria_f, m_cellularia_f, p_gregarium_f,
+           a_aurita_f, c_capillata_f, c_capillata_2_f]  # e_indicans_f
 
 sea_den = 1.024 * np.power(10.0, 6)  # g/m^3, 1.024 g/cm^3 (Colin & Costello, 2001)
 sea_vis = np.power(10.0, -6)  # m^2/s
@@ -110,18 +115,27 @@ def get_basics(df_ref):
     heights = []
     diameters = []
 
-    has_am = False
+    has_ao = False
+    has_a = False
+    has_v = False
     for column in df_ref.columns:
-        if re.search(r'am', column):
-            has_am = True
+        if re.search(r'ao', column):
+            has_ao = True
+        elif re.search(r'a', column):
+            has_a = True
+        if re.search(r'v', column):
+            has_v = True
+
+    if not has_ao and not has_a and not has_v:
+        return
 
     for row in df_ref.index:
-        if has_am:
+        if has_ao:
             aoc = df_ref.at[row, 'ao'] / 100.0
             accelerations_o.append(aoc)
             amc = df_ref.at[row, 'am'] / 100.0
             accelerations_m.append(amc)
-        else:
+        elif has_a:
             aoc = df_ref.at[row, 'a'] / 100.0
             accelerations_o.append(aoc)
         u = df_ref.at[row, 'v'] / 100.0  # convert velocity unit to m/s
@@ -130,10 +144,20 @@ def get_basics(df_ref):
         diameters.append(d_h[0])
         heights.append(d_h[1])
 
-    if has_am:
+    if not has_ao and not has_a:
+        for row in (list(range(len(df_ref.index) - 1))):
+            t1 = df_ref.at[row, 'st']
+            t2 = df_ref.at[row + 1, 'st']
+            v1 = df_ref.at[row, 'v']
+            v2 = df_ref.at[row + 1, 'v']
+            aoc = (v2 - v1) / (t2 - t1)
+            accelerations_o.append(aoc)
+        accelerations_o.append(0)
+
+    if has_ao:
         df_ref["am"] = accelerations_m
-    # else:
-        # df_ref.rename(columns={"a": "ao"})  # WHY DOESN'T THIS WORK
+    else:
+        df_ref.rename(columns={"a": "ao"}, inplace=True)  # WHY DOESN'T THIS WORK
     df_ref["ao"] = accelerations_o
     df_ref["v"] = velocities
     df_ref["h"] = heights
@@ -141,9 +165,7 @@ def get_basics(df_ref):
 
 
 ######################################################################
-# implement the original and improved thrust model based on the modeled
-# acceleration provided in the article. improved model uses instantaneous
-# orifice area
+# add thrust and dsdt using acceleration, mass, and drag
 ######################################################################
 def get_dsdt(df_ref, ori_ref=None):
     orifices = []
@@ -193,7 +215,7 @@ def get_dsdt(df_ref, ori_ref=None):
 
 
 ######################################################################
-# get acceleration based on the modeled acceleration estimate.
+# add acceleration based on the modeled acceleration estimate.
 # used to check if the model has been implemented correctly
 # and compare to the observed acceleration
 ######################################################################
@@ -228,8 +250,8 @@ def return_accel(df_ref, improved=False):
 
 
 ######################################################################
-# find the modeled thrust force based on the modeled acceleration
-# derived by the basic measurements
+# add ds, dv and other measurements of volume changes
+# using thrust, volume, and time
 ######################################################################
 def sub_n_vol_change(df_ref, ori_ref):
     thrust = ""
@@ -264,8 +286,7 @@ def sub_n_vol_change(df_ref, ori_ref):
 
 
 ######################################################################
-# find the modeled thrust force based on the modeled acceleration
-# derived by the basic measurements
+# add acceleration using mass, drag and a calculated thrust
 ######################################################################
 def get_accel(df_ref):
 
@@ -325,13 +346,16 @@ def get_accel(df_ref):
 
 
 ######################################################################
-# find the observed thrust force based on the observed acceleration,
-# velocity, bell height, bell diameter, and re
+# add thrust and change of bell volume(why?)
+# by using velocity, bell dimensions, re, and time
 ######################################################################
 def get_thrust(df_ref):
-    volumes = []  # store instantaneous volumes
-    thrusts = []  # store instantaneous thrusts
-    dv = []
+    volumes = []
+    thrusts = []
+    masses = []
+    drags = []
+    forces = []
+    # dv = []
 
     for row in df_ref.index:
         v = df_ref.at[row, 'v']
@@ -340,19 +364,25 @@ def get_thrust(df_ref):
         d = df_ref.at[row, 'd']
         a = df_ref.at[row, 'ao']
         volumes.append(bell_vol(h, d))
-        thrusts.append(tf_a(h, d, a, r, v))
+        masses.append(bell_mas(h, d))
+        drags.append(bell_drag(r, h, d, v))
+        forces.append(nf_a(h, d, a))
+        thrusts.append(tf_a2(h, d, a, r, v))
 
     df_ref["V"] = volumes
+    df_ref["m"] = masses
+    df_ref["drg"] = drags
+    df_ref["nf"] = forces
     df_ref["tf"] = thrusts
 
-    for row in (list(range(len(df_ref.index) - 1))):
-        t = df_ref.at[row, 'st']
-        v1 = df_ref.at[row, 'V']
-        v2 = df_ref.at[row+1, 'V']
-        dv.append((v2-v1)/t)
-
-    dv.append(0)
-    df_ref["dV"] = dv
+    # for row in (list(range(len(df_ref.index) - 1))):
+    #     t = df_ref.at[row, 'st']
+    #     v1 = df_ref.at[row, 'V']
+    #     v2 = df_ref.at[row+1, 'V']
+    #     dv.append((v2-v1)/t)
+    #
+    # dv.append(0)
+    # df_ref["dV"] = dv
 
 
 ######################################################################
@@ -403,16 +433,21 @@ def bell_mas(h_ref, d_ref):
 # param: Re, bell height(m), bell diameter(m), swimming velocity (m/s)
 ######################################################################
 def bell_drag(re_ref, h_ref, d_ref, u_ref):
-    if re_ref > 700:
-        return 0
-    elif re_ref < 1:
+    # if re_ref > 700:
+    #     return 0
+    # elif re_ref < 1:
+    if re_ref < 1:
         # drag coefficient = 24 / re
         # coefficient:
         coe = 24 / re_ref
-    else:
+    elif re_ref < 500:
         # drag coefficient = 24 / re^0.7
         # coefficient:
         coe = 24 / np.power(re_ref, 0.7)
+    else:
+        # drag coefficient = 24 / re^0.7
+        # coefficient:
+        coe = 24 / np.power(re_ref, 0.5)
 
     # bell surface area = pi * bell height * bell diameter / 4
     # area: m^2 = m * m
@@ -423,7 +458,7 @@ def bell_drag(re_ref, h_ref, d_ref, u_ref):
     drag = (sea_den * np.power(u_ref, 2) * area * coe) / 2
 
     if drag < 0.000001:
-        print("coe %f area %f veloc %f" % (coe, area, u_ref))
+        print("SMALL DRAG WARNING: coe %f area %f veloc %f" % (coe, area, u_ref))
 
     return drag
 
@@ -474,10 +509,23 @@ def tf_a(h_ref, d_ref, a_ref, re_ref, u_ref):
     force = nf_a(h_ref, d_ref, a_ref)
     drag = bell_drag(re_ref, h_ref, d_ref, u_ref)
     thrust = force + drag
+
     if thrust < 0:
         return 0
     else:
         return thrust
+
+
+######################################################################
+# get thrust (g * m / s^2) from acceleration
+# param: bell height(m), bell diameter(m), acceleration(m/s^2),
+#        Re, swimming velocity (m/s)
+######################################################################
+def tf_a2(h_ref, d_ref, a_ref, re_ref, u_ref):
+    force = nf_a(h_ref, d_ref, a_ref)
+    drag = bell_drag(re_ref, h_ref, d_ref, u_ref)
+    thrust = force + drag
+    return thrust
 
 
 ######################################################################
@@ -489,6 +537,17 @@ def nf_tf(thr_ref, drg_ref):
     # force: g * m / s^2 = g * m / s^2 - g * m / s^2
     net_force = thr_ref - drg_ref
     return net_force
+
+
+######################################################################
+# get acceleration (m / s^2) from thrust, drag, and mass
+# param: thrust (g * m / s^2), drag (g * m / s^2), mass (g)
+######################################################################
+def a_tf(thr_ref, drg_ref, mas_ref):
+    # acceleration = (thrust - drag) / mass
+    # acceleration: (g * m / s^2 - g * m / s^2) / g
+    acc = (thr_ref - drg_ref) / mas_ref
+    return acc
 
 
 ######################################################################
@@ -620,3 +679,114 @@ def split_gregarium(df_ref):
     ref_4['st'] = np.arange(0, df_ref.at[2, 'st'] + 0.05, df_ref.at[2, 'st'] / 3)
 
     return [ref_1, ref_2, ref_3, ref_4]
+
+
+######################################################################
+# split a_aurita dataframe into 4 based on volume
+# param: df
+######################################################################
+def split_aurita(df_ref):
+    ref_1 = df_ref[3:11].copy()
+    ref_1['st'] = np.arange(0, df_ref.at[7, 'st'] + 0.05, df_ref.at[7, 'st'] / 7)
+    ref_2 = df_ref[11:19].copy()
+    ref_2['st'] = np.arange(0, df_ref.at[7, 'st'] + 0.05, df_ref.at[7, 'st'] / 7)
+    ref_3 = df_ref[19:27].copy()
+    ref_3['st'] = np.arange(0, df_ref.at[7, 'st'] + 0.05, df_ref.at[7, 'st'] / 7)
+    ref_4 = df_ref[27:35].copy()
+    ref_4['st'] = np.arange(0, df_ref.at[7, 'st'] + 0.05, df_ref.at[7, 'st'] / 7)
+
+    return [ref_1, ref_2, ref_3, ref_4]
+
+
+######################################################################
+# split s_meleagris dataframe into 4 based on volume
+# param: df
+######################################################################
+def split_meleagris(df_ref):
+    ref_1 = df_ref[5:16].copy()
+    ref_1['st'] = np.arange(0, df_ref.at[10, 'st'] + 0.005, df_ref.at[10, 'st'] / 10)
+    ref_2 = df_ref[16:26].copy()
+    ref_2['st'] = np.arange(0, df_ref.at[10, 'st'] + 0.005, df_ref.at[10, 'st'] / 9)
+    ref_3 = df_ref[26:37].copy()
+    ref_3['st'] = np.arange(0, df_ref.at[10, 'st'] + 0.005, df_ref.at[10, 'st'] / 10)
+    ref_4 = df_ref[37:48].copy()
+    ref_4['st'] = np.arange(0, df_ref.at[10, 'st'] + 0.005, df_ref.at[10, 'st'] / 10)
+
+    return [ref_1, ref_2, ref_3, ref_4]
+
+
+######################################################################
+# split l_unguiculata dataframe into 5 based on volume
+# param: df
+######################################################################
+def split_unguiculata(df_ref):
+    ref_1 = df_ref[2:12].copy()
+    ref_1['st'] = np.arange(0, df_ref.at[9, 'st'] + 0.005, df_ref.at[9, 'st'] / 9)
+    ref_2 = df_ref[12:22].copy()
+    ref_2['st'] = np.arange(0, df_ref.at[9, 'st'] + 0.005, df_ref.at[9, 'st'] / 9)
+    ref_3 = df_ref[22:33].copy()
+    ref_3['st'] = np.arange(0, df_ref.at[9, 'st'] + 0.005, df_ref.at[9, 'st'] / 10)
+    ref_4 = df_ref[33:43].copy()
+    ref_4['st'] = np.arange(0, df_ref.at[9, 'st'] + 0.005, df_ref.at[9, 'st'] / 9)
+    ref_5 = df_ref[43:53].copy()
+    ref_5['st'] = np.arange(0, df_ref.at[9, 'st'] + 0.005, df_ref.at[9, 'st'] / 9)
+
+    return [ref_1, ref_2, ref_3, ref_4, ref_5]
+
+
+######################################################################
+# split c_capillata dataframe into 4 based on volume
+# param: df
+######################################################################
+def split_capillata(df_ref):
+    ref_1 = df_ref[3:19].copy()
+    ref_1['st'] = np.arange(0, df_ref.at[14, 'st'] + 0.005, df_ref.at[14, 'st'] / 15)
+    ref_2 = df_ref[19:33].copy()
+    ref_2['st'] = np.arange(0, df_ref.at[14, 'st'] + 0.005, df_ref.at[14, 'st'] / 13)
+    ref_3 = df_ref[33:50].copy()
+    ref_3['st'] = np.arange(0, df_ref.at[14, 'st'] + 0.005, df_ref.at[14, 'st'] / 16)
+    ref_4 = df_ref[50:64].copy()
+    ref_4['st'] = np.arange(0, df_ref.at[14, 'st'] + 0.005, df_ref.at[14, 'st'] / 13)
+
+    return [ref_1, ref_2, ref_3, ref_4]
+
+
+######################################################################
+# split c_capillata_2 dataframe into 3 based on volume
+# param: df
+######################################################################
+def split_capillata2(df_ref):
+    ref_1 = df_ref[6:34].copy()
+    ref_1['st'] = np.arange(0, df_ref.at[25, 'st'] + 0.005, df_ref.at[25, 'st'] / 27)
+    ref_2 = df_ref[34:58].copy()
+    ref_2['st'] = np.arange(0, df_ref.at[25, 'st'] + 0.005, df_ref.at[25, 'st'] / 23)
+    ref_3 = df_ref[58:86].copy()
+    ref_3['st'] = np.arange(0, df_ref.at[25, 'st'] + 0.005, df_ref.at[25, 'st'] / 27)
+
+    return [ref_1, ref_2, ref_3]
+
+
+######################################################################
+# split l_tetraphylla dataframe into 2 based on volume
+# param: df
+######################################################################
+def split_tetraphylla(df_ref):
+    ref_1 = df_ref[11:34].copy()
+    ref_1['st'] = np.arange(0, df_ref.at[24, 'st'] + 0.0005, df_ref.at[24, 'st'] / 22)
+    ref_2 = df_ref[34:62].copy()
+    ref_2['st'] = np.arange(0, df_ref.at[24, 'st'] + 0.0005, df_ref.at[24, 'st'] / 27)
+
+    return [ref_1, ref_2]
+
+
+######################################################################
+# split l_tetraphylla_2 dataframe into 2 based on volume
+# param: df
+######################################################################
+def split_tetraphylla2(df_ref):
+    ref_1 = df_ref[11:35].copy()
+    ref_1['st'] = np.arange(0, df_ref.at[25, 'st'] + 0.0005, df_ref.at[25, 'st'] / 23)
+    ref_2 = df_ref[35:64].copy()
+    ref_2['st'] = np.arange(0, df_ref.at[25, 'st'] + 0.0005, df_ref.at[25, 'st'] / 28)
+
+    return [ref_1, ref_2]
