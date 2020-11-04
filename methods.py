@@ -9,6 +9,8 @@ from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import Pipeline
 import researchpy as rp
 import statsmodels.api as sm
+from statsmodels.regression.linear_model import OLS
+from statsmodels.tools import add_constant
 import scipy.stats as stats
 
 f_path = "/Users/beelee/PycharmProjects/OblateThrust/csv/"
@@ -367,7 +369,7 @@ def get_thrust(df_ref):
         masses.append(bell_mas(h, d))
         drags.append(bell_drag(r, h, d, v))
         forces.append(nf_a(h, d, a))
-        thrusts.append(tf_a2(h, d, a, r, v))
+        thrusts.append(tf_a(h, d, a, r, v))  #tf_a2
 
     df_ref["V"] = volumes
     df_ref["m"] = masses
