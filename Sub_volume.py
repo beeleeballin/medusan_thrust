@@ -35,6 +35,7 @@ def main():
 
     dfss = [split_sp(dfs[0]), split_gregarium(dfs[1])]
 
+    fig_label = ['A', 'B']
     dfs_count = 0
     for dfs in dfss:
         total_x = np.array([])
@@ -47,21 +48,23 @@ def main():
         fii = mod.fit()
         p_value = fii.summary2().tables[1]['P>|t|']
         print(fii.summary())
-        plt.scatter(total_x, total_y)
         r = np.corrcoef(total_x, total_y)
         polymodel = np.poly1d(np.polyfit(total_x, total_y, 1))
         m, b = polymodel
         polyline = np.linspace(min(total_x), max(total_x), 100)
-        plt.plot(polyline, polymodel(polyline), label='dV to dS linear regression')
-        plt.title("%s change of subumbrellar volume with respect to change of bell volume" % (name[dfs_count]))
+        fig, ax = plt.subplots()
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        plt.scatter(total_x, total_y, color='black')
+        plt.plot(polyline, polymodel(polyline), color='black', label='dV to dS linear regression')
         # chisq = sum(np.power((total_y - polymodel2(total_x)), 2)/polymodel2(total_x))
-        figtext(0.15, 0.8, "r^2: %.2f" % np.power(r[0, 1], 2))
-        figtext(0.15, 0.76, "line: %.3f x + %.2E" % (m, b))
-        figtext(0.15, 0.72, "constant p_value: %.3E" % p_value[0])
-        figtext(0.15, 0.68, "x p_value: %.3E" % p_value[1])
-        plt.legend()
-        plt.xlabel("Change of Bell Volume m^3")
-        plt.ylabel("Change of Subumbrellar Volume m^3")
+        figtext(0.15, 0.83, fig_label[dfs_count], size=20)
+        figtext(0.15, 0.76, "$r^2$: %.2f" % np.power(r[0, 1], 2))
+        figtext(0.15, 0.72, "y: %.2f x + %.2E" % (m, b))
+        figtext(0.15, 0.68, "p: %.2E" % p_value[1])
+        if dfs_count != 0:
+            plt.xlabel("Change of Bell Volume $(m^3)$")
+        plt.ylabel("Change of Subumbrellar Volume $(m^3)$")
         plt.tight_layout()
         plt.show()
         dfs_count += 1

@@ -31,15 +31,21 @@ def main():
     oris = [s_sp_ori, p_gregarium_ori]
 
     dfs_count = 0
+    fig_lab = ['A', 'B', 'C']
+
     for (df, o) in zip(dfs, oris):
         copy_model(df, o)
+        fig, ax = plt.subplots()
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
         plt.plot(df["st"], df["ac"], linewidth=5, label='model estimate', color='orange')
         plt.plot(df["st"], df["am"], label='published estimate', color='dodgerblue')
         plt.plot(df["st"], df["ao"], label='observed acceleration', color='green')
-        plt.title("MODEL1 acceleration estimate matches the published %s acceleration estimate" % name[dfs_count])
-        plt.legend()
-        plt.xlabel("Swimming Time s")
-        plt.ylabel("Acceleration m/s^2")
+        plt.legend(loc='lower right')
+        if dfs_count != 0:
+            plt.xlabel("Time $(s)$")
+        plt.ylabel("Acceleration $(m/s^2)$")
+        figtext(0.2, 0.9, fig_lab[dfs_count], size=25)
         plt.tight_layout()
         plt.show()
         dfs_count += 1
@@ -62,31 +68,33 @@ def main():
         for row in max_acc.index:
             max_acc.loc[row, 'type'] = acc_type[row % 3]
         # print(rp.summary_cont(max_accel['accel'].groupby(max_accel['type'])))
-        am_ac_p = stats.f_oneway(max_acc['accel'][max_acc['type'] == 'am'],
-                             max_acc['accel'][max_acc['type'] == 'ac'])[1]
-        am_ao_p = stats.f_oneway(max_acc['accel'][max_acc['type'] == 'am'],
+        p_value = stats.f_oneway(max_acc['accel'][max_acc['type'] == 'am'],
+                                 max_acc['accel'][max_acc['type'] == 'ac'],
                                  max_acc['accel'][max_acc['type'] == 'ao'])[1]
-        ac_ao_p = stats.f_oneway(max_acc['accel'][max_acc['type'] == 'ac'],
-                                 max_acc['accel'][max_acc['type'] == 'ao'])[1]
+        print(pairwise_tukeyhsd(max_acc['accel'], max_acc['type']))
         max_acc = max_acc.pivot(columns='type', values='accel')
         max_acc = max_acc.reindex(columns=['am', 'ac', 'ao'])
         max_acc = max_acc.apply(lambda x: pd.Series(x.dropna().values))
         means = max_acc.mean(axis=0)
         errors = max_acc.std(axis=0)/2
         width = 0.1
+        fig, ax = plt.subplots()
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
         plt.bar(np.arange(3), means, yerr=errors, width=7 * width, label='means', color='dodgerblue')
         plt.bar(np.arange(3) - 1.5 * width, max_acc.iloc[0], alpha=0.5, width=width, color='green')
         plt.bar(np.arange(3) - 0.5 * width, max_acc.iloc[1], alpha=0.5, width=width, color='green')
         plt.bar(np.arange(3) + 0.5 * width, max_acc.iloc[2], alpha=0.5, width=width, color='green')
         plt.bar(np.arange(3) + 1.5 * width, max_acc.iloc[3], alpha=0.5, width=width, color='green')
-        plt.legend()
-        labels = ['Published Estimate', 'Model1 Estimate', 'Observed Acceleration']
-        plt.ylabel('Max Acceleration m/s^2')
-        plt.title("MODEL1 max acceleration estimate matches the published %s acceleration estimate" % name[dfs_count])
+        labels = ['', '', '']
+        plt.ylabel('Max Acceleration $(m/s^2)$')
         plt.xticks(range(3), labels)
-        figtext(0.15, 0.78, "published & modeled:  p = %.2E" % am_ac_p)
-        figtext(0.15, 0.74, "published & observed: p = %.2E" % am_ao_p)
-        figtext(0.15, 0.7, "modeled & observed: p = %.2E" % ac_ao_p)
+        # plt.xticks(range(3))
+        if dfs_count > 0:
+            figtext(0.245, 0.23, "*", size=15)
+            figtext(0.505, 0.23, "*", size=15)
+        figtext(0.15, 0.75, "p: %.2E" % p_value, size=15)
+        figtext(0.15, 0.8, fig_lab[dfs_count], size=25)
         plt.show()
         dfs_count += 1
 
@@ -106,33 +114,33 @@ def main():
     acc_type = ['am', 'ac', 'ao']
     for row in max_acc.index:
         max_acc.loc[row, 'type'] = acc_type[row % 3]
-    am_ac_p = stats.f_oneway(max_acc['accel'][max_acc['type'] == 'am'],
-                             max_acc['accel'][max_acc['type'] == 'ac'])[1]
-    am_ao_p = stats.f_oneway(max_acc['accel'][max_acc['type'] == 'am'],
+    p_value = stats.f_oneway(max_acc['accel'][max_acc['type'] == 'am'],
+                             max_acc['accel'][max_acc['type'] == 'ac'],
                              max_acc['accel'][max_acc['type'] == 'ao'])[1]
-    ac_ao_p = stats.f_oneway(max_acc['accel'][max_acc['type'] == 'ac'],
-                             max_acc['accel'][max_acc['type'] == 'ao'])[1]
+    print(pairwise_tukeyhsd(max_acc['accel'], max_acc['type']))
     max_acc = max_acc.pivot(columns='type', values='accel')
     max_acc = max_acc.reindex(columns=['am', 'ac', 'ao'])
     max_acc = max_acc.apply(lambda x: pd.Series(x.dropna().values))
     means = max_acc.mean(axis=0)
     errors = max_acc.std(axis=0) / 2
+    fig, ax = plt.subplots()
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
     width = 0.1
     plt.bar(np.arange(3), means, yerr=errors, width=7 * width, label='means', color='dodgerblue')
     plt.bar(np.arange(3) - 1.5 * width, max_acc.iloc[0], alpha=0.5, width=width, color='green')
     plt.bar(np.arange(3) - 0.5 * width, max_acc.iloc[1], alpha=0.5, width=width, color='green')
     plt.bar(np.arange(3) + 0.5 * width, max_acc.iloc[2], alpha=0.5, width=width, color='green')
     plt.bar(np.arange(3) + 1.5 * width, max_acc.iloc[3], alpha=0.5, width=width, color='green')
-    plt.legend()
-    labels = ['Published Estimate', 'Model1 Estimate', 'Observed Acceleration']
-    plt.ylabel('Max Acceleration m/s^2')
-    plt.title("P. gregarium max acceleration estimates by MODEL1 with minor tweaks")
+    labels = ['Published Estimate', 'MODEL1 Estimate', 'Observed Acceleration']
+    plt.ylabel('Max Acceleration $(m/s^2)$')
     plt.xticks(range(3), labels)
-    figtext(0.15, 0.75, "published & modeled:  p = %.2E" % am_ac_p)
-    figtext(0.15, 0.7, "published & observed: p = %.2E" % am_ao_p)
-    figtext(0.15, 0.65, "modeled & observed: p = %.2E" % ac_ao_p)
+    figtext(0.245, 0.23, "*", size=15)
+    figtext(0.5, 0.45, "* #", size=15)
+    figtext(0.765, 0.85, "#", size=15)
+    figtext(0.15, 0.75, "p: %.2E" % p_value, size=15)
+    figtext(0.15, 0.8, fig_lab[dfs_count], size=25)
     plt.show()
-    dfs_count += 1
 
     # df_count = 0
     # for df in dfs:

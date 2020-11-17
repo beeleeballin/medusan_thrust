@@ -19,8 +19,8 @@ def main():
 
     # group the medusa of interest for easy access
     name = ["a_digitale", "s_sp", "p_flavicirrata", "s_meleagris", "l_unguiculata",
-            "l_tetraphylla", "l_tetraphylla_2", "a_victoria",
-            "m_cellularia", "p_gregarium", "a_aurita",  "c_capillata", "c_capillata_2"]
+            "l_tetraphylla", "l_tetraphylla_2", "p_gregarium", "a_aurita",
+            "c_capillata", "c_capillata_2", "a_victoria", "m_cellularia"]
     colors = ['firebrick', 'goldenrod', 'green', 'dodgerblue', 'purple', 'red', 'orange',
               'yellow', 'pink',  'cyan', 'blue',  'gray', 'black']
 
@@ -138,6 +138,153 @@ def main():
     dfs_count = 0
     total_x = np.array([])
     total_y = np.array([])
+    fig, ax = plt.subplots()
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    for dfs in dfss:
+        x = np.array([])
+        y = np.array([])
+        for df in dfs:
+            for row in df.index:
+                if dfs_count < 3:
+                    ej_vol = ds_dv(df.loc[row, 'V'], False, False)
+                elif df.loc[row, 'tf'] > 0:
+                    ej_vol = ds_dv(df.loc[row, 'V'], True, True)
+                else:
+                    ej_vol = ds_dv(df.loc[row, 'V'], True, False)
+                x = np.append(x, ej_vol)
+                y = np.append(y, df.loc[row, 'tf'])
+        plt.scatter(x, y, label=name[dfs_count], color=colors[dfs_count])
+        total_x = np.append(total_x, x)
+        total_y = np.append(total_y, y)
+        dfs_count += 1
+    total_x2 = sm.add_constant(total_x)
+    mod = sm.OLS(total_y, total_x2)
+    fii = mod.fit()
+    p_value = fii.summary2().tables[1]['P>|t|']
+    print(fii.summary())
+    # plt.scatter(total_x, total_y)
+    r = np.corrcoef(total_x, total_y)
+    polymodel = np.poly1d(np.polyfit(total_x, total_y, 1))
+    m, b = polymodel
+    polyline = np.linspace(min(total_x), max(total_x), 100)
+    plt.plot(polyline, polymodel(polyline))
+    regr = OLS(total_y, total_x).fit()
+    plt.xlabel("Instantaneous Wake Volume ($m^3$)")
+    plt.ylabel("Instantaneous Thrust ($mN$)")
+    plt.legend(loc='lower right')
+    figtext(0.15, 0.86, "$r^2$: %.2f" % np.power(r[0, 1], 2))
+    figtext(0.15, 0.82, "y: $%.2E$ x + $%.2f$" % (m, b))
+    figtext(0.15, 0.78, "p: $%.3E$" % p_value[1])
+    # figtext(0.15, 0.74, "aic: %.2f" % regr.aic)
+    plt.tight_layout()
+    plt.show()
+
+    tf_model_count = 0
+    for i in range(3):
+        dfs_count = 0
+        total_x = np.array([])
+        total_y = np.array([])
+        fig, ax = plt.subplots()
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        for dfs in dfss:
+            x = np.array([])
+            y = np.array([])
+            for df in dfs:
+                if tf_model_count == 0:
+                    bel_vol_change = df["V"].max() - df["V"].min()
+                    if dfs_count < 3:
+                        ej_vol = ds_dv(bel_vol_change, False, False)
+                    else:
+                        ej_vol = ds_dv(bel_vol_change, True, True)
+                    x = np.append(x, ej_vol)
+
+                    # quadratic mean of inst thrust
+                    tf_sq = []
+                    for row in df.index:
+                        if df.loc[row, 'tf'] > 0:
+                            tf_sq.append(np.power(df.loc[row, 'tf'], 2))
+                    tf_a = np.sqrt(sum(tf_sq) / len(df.index))
+                    y = np.append(y, tf_a)
+
+                if tf_model_count == 1:
+                    bel_vol_change = df["V"].min() - df["V"].max()
+                    if dfs_count < 3:
+                        ej_vol = ds_dv(bel_vol_change, False, False)
+                    else:
+                        ej_vol = ds_dv(bel_vol_change, True, False)
+                    x = np.append(x, ej_vol)
+
+                    # quadratic mean of inst thrust
+                    tf_sq = []
+                    for row in df.index:
+                        if df.loc[row, 'tf'] <= 0:
+                            tf_sq.append(np.power(df.loc[row, 'tf'], 2))
+                    tf_a = np.sqrt(sum(tf_sq) / len(df.index))
+                    y = np.append(y, (-1) * tf_a)
+
+                if tf_model_count == 2:
+                    bel_vol_change = df["V"].max() - df["V"].min()
+                    x = np.append(x, bel_vol_change)
+
+                    # quadratic mean of inst thrust
+                    tf_sq = []
+                    pos_row = 0
+                    for row in df.index:
+                        if df.loc[row, 'tf'] > 0:
+                            tf_sq.append(np.power(df.loc[row, 'tf'], 2))
+                            pos_row += 1
+                    tf_a_p = np.sqrt(sum(tf_sq) / pos_row)
+                    tf_sq = []
+                    for row in df.index:
+                        if df.loc[row, 'tf'] <= 0:
+                            tf_sq.append(np.power(df.loc[row, 'tf'], 2))
+                    tf_a_n = np.sqrt(sum(tf_sq) / (len(df.index)-pos_row))
+                    pos_ratio = pos_row/len(df.index)
+                    y = np.append(y, tf_a_p * pos_ratio - tf_a_n * (1-pos_ratio))
+
+            plt.scatter(x, y, label=name[dfs_count], color=colors[dfs_count])
+            total_x = np.append(total_x, x)
+            total_y = np.append(total_y, y)
+            dfs_count += 1
+        total_x2 = sm.add_constant(total_x)
+        mod = sm.OLS(total_y, total_x2)
+        fii = mod.fit()
+        p_value = fii.summary2().tables[1]['P>|t|']
+        print(fii.summary())
+        # plt.scatter(total_x, total_y)
+        r = np.corrcoef(total_x, total_y)
+        polymodel = np.poly1d(np.polyfit(total_x, total_y, 1))
+        m, b = polymodel
+        polyline = np.linspace(min(total_x), max(total_x), 100)
+        plt.plot(polyline, polymodel(polyline))
+        regr = OLS(total_y, total_x).fit()
+        if tf_model_count == 0:
+            plt.xlabel("Ejected Wake Volume ($m^3$)")
+            plt.ylabel("Average Thrust During Propulsion Strokes ($mN$)")
+        if tf_model_count == 1:
+            plt.xlabel("Inwards Fluid Volume ($m^3$)")
+            plt.ylabel("Average Thrust During Recovery Strokes ($mN$)")
+        if tf_model_count == 2:
+            plt.xlabel("Bell Volume ($m^3$)")
+            plt.ylabel("Average Thrust ($mN$)")
+        plt.legend(loc='lower right')
+        figtext(0.15, 0.86, "$r^2$: %.2f" % np.power(r[0, 1], 2))
+        figtext(0.15, 0.82, "y: $%.2E$ x + $%.2f$" % (m, b))
+        figtext(0.15, 0.78, "p: $%.3E$" % p_value[1])
+        # figtext(0.15, 0.74, "aic: %.2f" % regr.aic)
+        plt.tight_layout()
+        plt.show()
+        tf_model_count += 1
+
+
+    dfs_count = 0
+    total_x = np.array([])
+    total_y = np.array([])
+    fig, ax = plt.subplots()
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
     for dfs in dfss:
         x = np.array([])
         y = np.array([])
@@ -148,14 +295,19 @@ def main():
             else:
                 ej_vol = ds_dv(bel_vol_change, True)
             x = np.append(x, ej_vol)
+
+            # quadratic mean of inst thrust
+            df['tf_sq'] = np.power(df['tf'], 2)
+            tf_a = np.sqrt(sum(df['tf_sq'])/len(df.index))
+
+            # impulse
             df['dt'] = df["st"].diff(1)
             rei_sum = df['tf'] * df.loc[:, "dt"].mean()
             imp = sum(rei_sum)
-            time_change = df["st"].max() - df["st"].min()
-            avg_tf = imp / time_change
-            y = np.append(y, avg_tf)
-            print(ej_vol)
-            print(rei_sum)
+
+            # avg_tf = imp / time_change
+
+            y = np.append(y, imp)
         plt.scatter(x, y, label=name[dfs_count], color=colors[dfs_count])
         total_x = np.append(total_x, x)
         total_y = np.append(total_y, y)
@@ -165,53 +317,22 @@ def main():
     fii = mod.fit()
     p_value = fii.summary2().tables[1]['P>|t|']
     print(fii.summary())
-    plt.scatter(total_x, total_y)
+    # plt.scatter(total_x, total_y)
     r = np.corrcoef(total_x, total_y)
     polymodel = np.poly1d(np.polyfit(total_x, total_y, 1))
     m, b = polymodel
     polyline = np.linspace(min(total_x), max(total_x), 100)
-    plt.plot(polyline, polymodel(polyline), label='wake volume to thrust regression')
+    plt.plot(polyline, polymodel(polyline))
     regr = OLS(total_y, total_x).fit()
-    plt.title("Correlation of Ejected Wake Volume and Average Swimming Thrust")
     plt.xlabel("Wake Volume ($m^3$)")
-    plt.ylabel("Thrust ($mN$)")
+    plt.ylabel("Impulse ($mN*s$)")
+    plt.legend(loc='lower right')
     figtext(0.15, 0.86, "$r^2$: %.2f" % np.power(r[0, 1], 2))
-    figtext(0.15, 0.82, "line: $%.2E$ x + $%.2E$" % (m, b))
-    figtext(0.15, 0.78, "p-value at m: $%.3E$" % p_value[1])
+    figtext(0.15, 0.82, "y: $%.2E$ x + $%.2f$" % (m, b))
+    figtext(0.15, 0.78, "p: $%.3E$" % p_value[1])
     figtext(0.15, 0.74, "aic: %.2f" % regr.aic)
     plt.tight_layout()
     plt.show()
-
-    # dfs_count = 0
-    # total_x1 = np.array([])
-    # total_y1 = np.array([])
-    # total_x2 = np.array([])
-    # total_y2 = np.array([])
-    # for dfs in dfss:
-    #     for df in dfs:
-    #         bel_vol = df["V"].max() - df["V"].min()
-    #         if dfs_count <= 2:
-    #             ej_vol = ds_dv(bel_vol, False)
-    #             total_x1 = np.append(total_x1, ej_vol)
-    #             total_y1 = np.append(total_y1, df["ao"].max())
-    #         else:
-    #             ej_vol = ds_dv(bel_vol, True)
-    #             total_x2 = np.append(total_x2, ej_vol)
-    #             total_y2 = np.append(total_y2, df["ao"].max())
-    #     dfs_count += 1
-    # plt.scatter(total_x1, total_y1)
-    # plt.title("effect of ejected fluid volume on prolate max thrust")
-    # plt.xlabel("ejected volume")
-    # plt.ylabel("maximum thrust g*m*s^-2")
-    # plt.tight_layout()
-    # plt.show()
-    #
-    # plt.scatter(total_x2, total_y2)
-    # plt.title("effect of ejected fluid volume on oblate max thrust")
-    # plt.xlabel("ejected volume")
-    # plt.ylabel("maximum thrust g*m*s^-2")
-    # plt.tight_layout()
-    # plt.show()
 
 
 main()
