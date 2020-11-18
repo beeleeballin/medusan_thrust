@@ -14,35 +14,61 @@ from methods import *
 # a new approach is needed.
 ######################################################################
 def main():
-    # import pre-cleaned up csv files, 3 oblates
-    # a_digitale = pd.read_csv(a_digitale_f)
-    # s_sp = pd.read_csv(s_sp_f)
-    # p_flavicirrata = pd.read_csv(p_flavicirrata_f)
-    # import pre-cleaned up csv files, 3 oblates
-    a_victoria = pd.read_csv(a_victoria_f)
-    m_cellularia = pd.read_csv(m_cellularia_f)
-    p_gregarium = pd.read_csv(p_gregarium_f)
-    # group the medusa of interest for easy access
-    dfs = [a_victoria, m_cellularia, p_gregarium]  # a_digitale, s_sp, p_flavicirrata,
-    name = ["A. victoria", "M. cellularia", "P. gregarium"]  # "a_digitale", "s_sp", "p_flavicirrata",
+    pd.set_option('display.max_rows', None)
 
-    # oris= [(ori(0.83 / 100)), (ori(0.85 / 100)), (ori(0.56 / 100)),
-    #        (ori(5 / 100)), (ori(6.5 / 100)), (ori(2.14 / 100))]
+    # import pre-cleaned up csv files, 3 oblates & 11 oblates
+    dfs = list()
+    for filename in all_csv:
+        df = pd.read_csv(filename)
+        dfs.append(df)
 
-    for df in dfs:
+        # group the medusa of interest for easy access
+    name = ["S. meleagris", "L unguiculata", "L. tetraphylla", "A. victoria",
+            "P. gregarium", "A. aurita", "C. capillata", 'more?', 'how?', 'ahh', 'I know why']  # "M. cellularia"
+    colors = ['firebrick', 'goldenrod', 'green', 'dodgerblue', 'purple', 'red',
+              'orange', 'yellow', 'cyan', 'blue', 'pink']
+
+    fig_lab = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'L', 'M']
+    dfs_count = 0
+    for df in dfs[3:5]:
         improved_model(df)
+        print(df)
+        fig, ax = plt.subplots()
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        plt.plot(df["st"], df["ac"], label='MODEL2 projection', color='orange')
+        plt.plot(df["st"], df["ao"], label='Observed', color='green')
+        plt.legend(loc='lower right')
+        if dfs_count == 1:
+            plt.xlabel("Time $(s)$")
+        plt.ylabel("Acceleration $(m/s^2)$")
+        figtext(0.2, 0.9, fig_lab[dfs_count], size=25)
+        plt.tight_layout()
+        plt.show()
+        dfs_count += 1
 
-    dfss = [split_victoria(dfs[0]), split_cellularia(dfs[1]), split_gregarium(dfs[2])]
 
-    for dfs in dfss:
-        for df in dfs:
-            for row in df.index:
-                if df.loc[row, 'ac'] > 1:
-                    df.drop(row, inplace=True)
+    dfss = [split_meleagris2(dfs[3]), split_unguiculata2(dfs[4])]
+            # split_tetraphylla(dfs[5]) + split_tetraphylla2(dfs[6]), split_victoria(dfs[7]),
+            # split_cellularia(dfs[8]), split_gregarium(dfs[9]), split_aurita(dfs[10]),
+            # split_capillata(dfs[11]) + split_capillata2(dfs[12])]
 
+    # for dfs in dfss:
+    #     for df in dfs:
+    #         for row in df.index:
+    #             if df.loc[row, 'ac'] > 1:
+    #                 df.drop(row, inplace=True)
+
+    # max acceleration!
     dfs_count = 0
     for dfs in dfss:
-        acc_per_cycle = np.empty([8])
+        fig, ax = plt.subplots()
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        if dfs_count == 0:
+            acc_per_cycle = np.empty([10])
+        else:
+            acc_per_cycle = np.empty([8])
         df_count = 0
         for df in dfs:
             acc_per_cycle[df_count * 2] = max(df["ac"])
@@ -61,16 +87,23 @@ def main():
         errors = max_acc.std(axis=0) / 2
         width = 0.1
         plt.bar(np.arange(2), means, yerr=errors, width=7 * width, label='means', color='dodgerblue')
-        plt.bar(np.arange(2) - 1.5 * width, max_acc.iloc[0], alpha=0.5, width=width, color='green')
-        plt.bar(np.arange(2) - 0.5 * width, max_acc.iloc[1], alpha=0.5, width=width, color='green')
-        plt.bar(np.arange(2) + 0.5 * width, max_acc.iloc[2], alpha=0.5, width=width, color='green')
-        plt.bar(np.arange(2) + 1.5 * width, max_acc.iloc[3], alpha=0.5, width=width, color='green')
-        plt.legend()
-        labels = ['MODEL2 Estimate', 'Observed Acceleration']
-        plt.ylabel('Max Acceleration m/s^2')
-        plt.title("MODEL2 max acceleration estimate and observed data for %s" % name[dfs_count])
+        if dfs_count == 0:
+            plt.bar(np.arange(2) - 2 * width, max_acc.iloc[0], alpha=0.5, width=width, color='green')
+            plt.bar(np.arange(2) - 1 * width, max_acc.iloc[1], alpha=0.5, width=width, color='green')
+            plt.bar(np.arange(2), max_acc.iloc[2], alpha=0.5, width=width, color='green')
+            plt.bar(np.arange(2) + 1 * width, max_acc.iloc[3], alpha=0.5, width=width, color='green')
+            plt.bar(np.arange(2) + 2 * width, max_acc.iloc[4], alpha=0.5, width=width, color='green')
+        if dfs_count == 1:
+            plt.bar(np.arange(2) - 1.5 * width, max_acc.iloc[0], alpha=0.5, width=width, color='green')
+            plt.bar(np.arange(2) - 0.5 * width, max_acc.iloc[1], alpha=0.5, width=width, color='green')
+            plt.bar(np.arange(2) + 0.5 * width, max_acc.iloc[2], alpha=0.5, width=width, color='green')
+            plt.bar(np.arange(2) + 1.5 * width, max_acc.iloc[3], alpha=0.5, width=width, color='green')
+        labels = ['MODEL2 Projection', 'Observed']
+        plt.ylabel('Max Acceleration ($m/s^2$)')
+        # plt.title("MODEL2 max acceleration estimate and observed data for %s" % name[dfs_count])
         plt.xticks(range(2), labels)
-        figtext(0.15, 0.78, "modeled & observed: p = %.2E" % ac_ao_p)
+        figtext(0.2, 0.9, fig_lab[dfs_count+2], size=25)
+        figtext(0.15, 0.78, "p = $%.2E$" % ac_ao_p)
         plt.show()
         dfs_count += 1
 

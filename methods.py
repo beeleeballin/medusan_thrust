@@ -3,6 +3,7 @@ import numpy as np
 import re
 from matplotlib import pyplot as plt
 from matplotlib.pyplot import figtext
+import matplotlib.lines as lines
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import PolynomialFeatures
@@ -13,6 +14,7 @@ from statsmodels.regression.linear_model import OLS
 from statsmodels.tools import add_constant
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 import scipy.stats as stats
+import seaborn as sns
 
 f_path = "/Users/beelee/PycharmProjects/OblateThrust/csv/"
 a_digitale_f = f_path + "a_digitale_data.csv"
@@ -165,6 +167,39 @@ def get_basics(df_ref):
     df_ref["v"] = velocities
     df_ref["h"] = heights
     df_ref["d"] = diameters
+
+
+def get_ds(df_ref):
+    change_v = []
+    change_s = []
+
+    for row in (list(range(len(df_ref.index) - 1))):
+        v1 = df_ref.at[row, 'V']
+        v2 = df_ref.at[row + 1, 'V']
+        change_v.append(v2 - v1)
+
+        tf = df_ref.at[row, 'tf']
+        o = df_ref.at[row, 'ori']
+        t1 = df_ref.at[row, 'st']
+        t2 = df_ref.at[row + 1, 'st']
+        if tf < 0:
+            dsdt = np.sqrt(o / sea_den * (-1)*tf)
+        else:
+            dsdt = np.sqrt(o / sea_den * tf)
+        if v2 < v1:
+            ds = (-1) * dsdt * (t2 - t1)
+        else:
+            ds = dsdt * (t2 - t1)
+        change_s.append(ds)
+
+    change_v.append(0)
+    change_s.append(0)
+
+    df_ref['dV'] = change_v
+    df_ref['dS'] = change_s
+
+
+
 
 
 ######################################################################
@@ -321,7 +356,10 @@ def get_accel(df_ref):
         vol2 = df_ref.at[row+1, 'V']
         t1 = df_ref.at[row, 'st']
         t2 = df_ref.at[row+1, 'st']
-        st = ds_dv(vol2-vol1)/(t2 - t1)
+        if vol2 > vol1:
+            st = ds_dv(vol2-vol1, True, False)/(t2 - t1)
+        else:
+            st = ds_dv(vol2-vol1, True, True)/(t2 - t1)
         dsdt.append(st)
         thrusts.append(tf_dsdt(o, st))
 
@@ -358,6 +396,7 @@ def get_thrust(df_ref):
     masses = []
     drags = []
     forces = []
+    orifices = []
     # dv = []
 
     for row in df_ref.index:
@@ -369,12 +408,14 @@ def get_thrust(df_ref):
         volumes.append(bell_vol(h, d))
         masses.append(bell_mas(h, d))
         drags.append(bell_drag(r, h, d, v))
+        orifices.append(ori(d))
         forces.append(nf_a(h, d, a))
         thrusts.append(tf_a2(h, d, a, r, v))  #tf_a
 
     df_ref["V"] = volumes
     df_ref["m"] = masses
     df_ref["drg"] = drags
+    df_ref["ori"] = orifices
     df_ref["nf"] = forces
     df_ref["tf"] = thrusts
 
@@ -573,11 +614,16 @@ def dsdv_tf(thrust_ref, ori_ref, vol_1, vol_2, t):
 ######################################################################
 def ds_dv(dv_ref, oblate=True, propulsion=True):
     if oblate and propulsion:
-        ds = 3*(0.345 * dv_ref - 1.34e-07)
+        ds = (-1) * 6.37 * dv_ref - 1.1182e-07
+        # ds = 6.29 * dv_ref - 7.37e-07
+        # ds = 5.93 * dv_ref - 1.13e-06
+        # ds = 6.82 * dv_ref - 4.49e-06
     elif oblate:
-        ds = 0.345 * dv_ref - 1.34e-07
+        ds = (-1) * 1.618 * dv_ref - 2.57e-07
+        # ds = 1.3 * dv_ref + 8.20e-07
+        # ds = 2.78 * dv_ref + 1.64e-06
     else:
-        ds = 1.263 * dv_ref + 7.357e-09
+        ds = 0.5 * dv_ref - 3.19e-09
 
     return ds
 
@@ -588,7 +634,10 @@ def ds_dv(dv_ref, oblate=True, propulsion=True):
 ######################################################################
 def tf_dsdt(ori_ref, dsdt_ref):
     # g * m / (s^2) = (g / m^3) / (m^2) * (m^3/s)^2
-    thrust = sea_den / ori_ref * np.power(dsdt_ref, 2)
+    if dsdt_ref > 0:
+        thrust = sea_den / ori_ref * np.power(dsdt_ref, 2)
+    if dsdt_ref < 0:
+        thrust = (-1) * sea_den / ori_ref * np.power(dsdt_ref, 2)
     return thrust
 
 
@@ -719,6 +768,25 @@ def split_meleagris(df_ref):
 
     return [ref_1, ref_2, ref_3, ref_4]
 
+######################################################################
+# split s_meleagris dataframe into 5 based on volume
+# param: df
+######################################################################
+
+def split_meleagris2(df_ref):
+    ref_1 = df_ref[0:11].copy()
+    ref_1['st'] = np.arange(0, df_ref.at[10, 'st'] + 0.005, df_ref.at[10, 'st'] / 10)
+    ref_2 = df_ref[11:21].copy()
+    ref_2['st'] = np.arange(0, df_ref.at[10, 'st'] + 0.005, df_ref.at[10, 'st'] / 9)
+    ref_3 = df_ref[21:31].copy()
+    ref_3['st'] = np.arange(0, df_ref.at[10, 'st'] + 0.005, df_ref.at[10, 'st'] / 9)
+    ref_4 = df_ref[31:41].copy()
+    ref_4['st'] = np.arange(0, df_ref.at[10, 'st'] + 0.005, df_ref.at[10, 'st'] / 9)
+    ref_5 = df_ref[41:51].copy()
+    ref_5['st'] = np.arange(0, df_ref.at[10, 'st'] + 0.005, df_ref.at[10, 'st'] / 9)
+
+    return [ref_1, ref_2, ref_3, ref_4, ref_5]
+
 
 ######################################################################
 # split l_unguiculata dataframe into 5 based on volume
@@ -733,10 +801,27 @@ def split_unguiculata(df_ref):
     ref_3['st'] = np.arange(0, df_ref.at[9, 'st'] + 0.005, df_ref.at[9, 'st'] / 10)
     ref_4 = df_ref[33:43].copy()
     ref_4['st'] = np.arange(0, df_ref.at[9, 'st'] + 0.005, df_ref.at[9, 'st'] / 9)
-    ref_5 = df_ref[43:53].copy()
-    ref_5['st'] = np.arange(0, df_ref.at[9, 'st'] + 0.005, df_ref.at[9, 'st'] / 9)
+    ref_5 = df_ref[43:52].copy()
+    ref_5['st'] = np.arange(0, df_ref.at[9, 'st'] + 0.005, df_ref.at[9, 'st'] / 8)
 
     return [ref_1, ref_2, ref_3, ref_4, ref_5]
+
+######################################################################
+# split l_unguiculata dataframe into 4 based on volume
+# param: df
+######################################################################
+
+def split_unguiculata2(df_ref):
+    ref_1 = df_ref[7:18].copy()
+    ref_1['st'] = np.arange(0, df_ref.at[9, 'st'] + 0.005, df_ref.at[9, 'st'] / 10)
+    ref_2 = df_ref[18:27].copy()
+    ref_2['st'] = np.arange(0, df_ref.at[9, 'st'] + 0.005, df_ref.at[9, 'st'] / 8)
+    ref_3 = df_ref[27:39].copy()
+    ref_3['st'] = np.arange(0, df_ref.at[9, 'st'] + 0.005, df_ref.at[9, 'st'] / 11)
+    ref_4 = df_ref[39:48].copy()
+    ref_4['st'] = np.arange(0, df_ref.at[9, 'st'] + 0.005, df_ref.at[9, 'st'] / 8)
+
+    return [ref_1, ref_2, ref_3, ref_4]
 
 
 ######################################################################

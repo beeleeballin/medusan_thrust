@@ -38,13 +38,14 @@ def main():
         fig, ax = plt.subplots()
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
-        plt.plot(df["st"], df["ac"], linewidth=5, label='model estimate', color='orange')
-        plt.plot(df["st"], df["am"], label='published estimate', color='dodgerblue')
-        plt.plot(df["st"], df["ao"], label='observed acceleration', color='green')
+        plt.plot(df.loc[df['st'] < 3, 'st'], df.loc[df['st'] < 3, 'ac'], linewidth=5, label='model estimate', color='orange')
+        plt.plot(df.loc[df['st'] < 3, 'st'], df.loc[df['st'] < 3, 'am'], label='published estimate', color='dodgerblue')
+        plt.plot(df.loc[df['st'] < 3, 'st'], df.loc[df['st'] < 3, 'ao'], label='observed acceleration', color='green')
         plt.legend(loc='lower right')
         if dfs_count != 0:
             plt.xlabel("Time $(s)$")
         plt.ylabel("Acceleration $(m/s^2)$")
+        ax.set_xticks([0, 0.5, 1, 1.5, 2, 2.5, 3])
         figtext(0.2, 0.9, fig_lab[dfs_count], size=25)
         plt.tight_layout()
         plt.show()
@@ -91,8 +92,11 @@ def main():
         plt.xticks(range(3), labels)
         # plt.xticks(range(3))
         if dfs_count > 0:
-            figtext(0.245, 0.23, "*", size=15)
-            figtext(0.505, 0.23, "*", size=15)
+            l1 = lines.Line2D([0.15, 0.62], [0.3, 0.3], transform=fig.transFigure, figure=fig, color='black')
+            l2 = lines.Line2D([0.15, 0.15], [0.23, 0.3], transform=fig.transFigure, figure=fig, color='black')
+            l3 = lines.Line2D([0.62, 0.62], [0.23, 0.3], transform=fig.transFigure, figure=fig, color='black')
+            fig.lines.extend([l1, l2, l3])
+            figtext(0.63, 0.4, "*", size=20)
         figtext(0.15, 0.75, "p: %.2E" % p_value, size=15)
         figtext(0.15, 0.8, fig_lab[dfs_count], size=25)
         plt.show()
@@ -135,12 +139,12 @@ def main():
     labels = ['Published Estimate', 'MODEL1 Estimate', 'Observed Acceleration']
     plt.ylabel('Max Acceleration $(m/s^2)$')
     plt.xticks(range(3), labels)
-    figtext(0.245, 0.23, "*", size=15)
-    figtext(0.5, 0.45, "* #", size=15)
-    figtext(0.765, 0.85, "#", size=15)
+    figtext(0.37, 0.3, "*", size=20)
+    figtext(0.63, 0.62, "*", size=20)
     figtext(0.15, 0.75, "p: %.2E" % p_value, size=15)
     figtext(0.15, 0.8, fig_lab[dfs_count], size=25)
     plt.show()
+
 
     # df_count = 0
     # for df in dfs:
