@@ -4,6 +4,7 @@ import re
 from matplotlib import pyplot as plt
 from matplotlib.pyplot import figtext
 import matplotlib.lines as lines
+import matplotlib.ticker as mtick
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import PolynomialFeatures
@@ -71,10 +72,10 @@ def tweaked_model(df_ref):
 # run my implementation of their model
 # param: dfs, constant orifice, and species names
 ######################################################################
-def improved_model(df_ref):
+def improved_model(df_ref, ori_ref):
     clean_time(df_ref)
     get_basics(df_ref)
-    get_accel(df_ref)
+    get_accel(df_ref, ori_ref)
 
     df_ref.drop(df_ref.tail(1).index, inplace=True)
 
@@ -183,7 +184,7 @@ def get_ds(df_ref):
         t1 = df_ref.at[row, 'st']
         t2 = df_ref.at[row + 1, 'st']
         if tf < 0:
-            dsdt = np.sqrt(o / sea_den * (-1)*tf)
+            dsdt = np.sqrt(o / sea_den * (-1) * tf)
         else:
             dsdt = np.sqrt(o / sea_den * tf)
         if v2 < v1:
@@ -326,16 +327,22 @@ def sub_n_vol_change(df_ref, ori_ref):
 ######################################################################
 # add acceleration using mass, drag and a calculated thrust
 ######################################################################
-def get_accel(df_ref):
+def get_accel(df_ref, ori_ref):
 
     volumes = []
     masses = []
     orifices = []
     drags = []
+
+    dsdt = []
     thrusts = []
     net_forces = []
     accelerations = []
-    dsdt = []
+
+    wrong_dsdt = []
+    wrong_thrusts = []
+    wrong_net_forces = []
+    wrong_accelerations = []
 
     for row in df_ref.index:
         h = df_ref.at[row, 'h']
@@ -356,33 +363,47 @@ def get_accel(df_ref):
         vol2 = df_ref.at[row+1, 'V']
         t1 = df_ref.at[row, 'st']
         t2 = df_ref.at[row+1, 'st']
+        st1 = ds_dv(vol2 - vol1, False, True) / (t2 - t1)
+        wrong_dsdt.append(st1)
+        wrong_thrusts.append(tf_dsdt(ori_ref, st1))
         if vol2 > vol1:
-            st = ds_dv(vol2-vol1, True, False)/(t2 - t1)
+            st2 = ds_dv(vol2-vol1, True, False)/(t2 - t1)
         else:
-            st = ds_dv(vol2-vol1, True, True)/(t2 - t1)
-        dsdt.append(st)
-        thrusts.append(tf_dsdt(o, st))
+            st2 = ds_dv(vol2-vol1, True, True)/(t2 - t1)
+        dsdt.append(st2)
+        thrusts.append(tf_dsdt(o, st2))
+
+    wrong_dsdt.append(0)
+    wrong_thrusts.append(0)
+    df_ref["w_dSdt"] = wrong_dsdt
+    df_ref["w_tf"] = wrong_thrusts
 
     dsdt.append(0)
     thrusts.append(0)
-
     df_ref["dSdt"] = dsdt
-    df_ref["drg"] = drags
     df_ref["tf"] = thrusts
 
+    df_ref["drg"] = drags
+
     for row in df_ref.index:
+        wthr = df_ref.at[row, 'w_tf']
         thr = df_ref.at[row, 'tf']
         drag = df_ref.at[row, 'drg']
+        wrong_net_forces.append(nf_tf(wthr, drag))
         net_forces.append(nf_tf(thr, drag))
 
     df_ref["m"] = masses
+    df_ref["w_nf"] = wrong_net_forces
     df_ref["nf"] = net_forces
 
     for row in df_ref.index:
         m = df_ref.at[row, 'm']
+        wf = df_ref.at[row, 'w_nf']
         f = df_ref.at[row, 'nf']
+        wrong_accelerations.append(wf / m)
         accelerations.append(f / m)
 
+    df_ref["am"] = wrong_accelerations
     df_ref["ac"] = accelerations
 
 
@@ -613,17 +634,20 @@ def dsdv_tf(thrust_ref, ori_ref, vol_1, vol_2, t):
 # equation acquired from Sub_volume.py
 ######################################################################
 def ds_dv(dv_ref, oblate=True, propulsion=True):
+    # improved model oblate injected volume
     if oblate and propulsion:
         ds = (-1) * 6.37 * dv_ref - 1.1182e-07
-        # ds = 6.29 * dv_ref - 7.37e-07
-        # ds = 5.93 * dv_ref - 1.13e-06
-        # ds = 6.82 * dv_ref - 4.49e-06
+    # improved model oblate injected volume
     elif oblate:
         ds = (-1) * 1.618 * dv_ref - 2.57e-07
         # ds = 1.3 * dv_ref + 8.20e-07
         # ds = 2.78 * dv_ref + 1.64e-06
+    # original model oblate thrust
+    elif propulsion:
+        ds = (-1) * 0.95 * dv_ref - 1.73e-08
+    # improved model prolate ejected/injected volume
     else:
-        ds = 0.5 * dv_ref - 3.19e-09
+        ds = (-1) * 0.5 * dv_ref - 3.19e-09
 
     return ds
 
